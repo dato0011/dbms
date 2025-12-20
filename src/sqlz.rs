@@ -1,7 +1,7 @@
 use std::error::Error;
 use std::fmt;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GenericType {
     // Fixed-size integer types (hardcoded byte sizes, no parameters)
     TinyInt,  // 1 byte
@@ -18,19 +18,26 @@ pub enum GenericType {
     Char(usize),    // Fixed length
     Text,           // Unlimited/variable
 
+    // Binary types (e.g., images)
+    Blob(usize),
+
     // Other common types (expand as needed)
     Boolean,
     Date,
     Timestamp,
+
     // Add more like Decimal(precision, scale) for numerics with arbitrary precision/scale
     Decimal { precision: usize, scale: usize },
+    UserDefined(String)
 }
 
 pub struct Column {
     pub name: String,
     pub col_type: GenericType,
+    pub native_type: String,
     pub nullable: bool,
     pub is_identity: bool,
+    pub max_length: Option<usize>,
 }
 
 pub struct Table {
