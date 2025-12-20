@@ -1,3 +1,6 @@
+use std::error::Error;
+use std::fmt;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum GenericType {
     // Fixed-size integer types (hardcoded byte sizes, no parameters)
@@ -25,7 +28,7 @@ pub enum GenericType {
 
 pub struct Column {
     pub name: String,
-    pub typ: GenericType,
+    pub col_type: GenericType,
     pub nullable: bool,
     pub is_identity: bool,
 }
@@ -35,6 +38,25 @@ pub struct Table {
     pub columns: Vec<Column>,
 }
 
+#[derive(Debug)]
+pub enum SqlzError {
+    ConnectionError(String),
+    DatabaseError(Box<dyn Error + Send + Sync>),
+}
+
+impl fmt::Display for SqlzError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            SqlzError::ConnectionError(msg) => write!(f, "Connection error: {}", msg),
+            SqlzError::DatabaseError(err) => write!(f, "Underlying database error: {}", err),
+        }
+    }
+}
+
+impl Error for SqlzError {}
+
+pub type SqlzResult<T> = Result<T, SqlzError>;
+
 pub trait Provider {
-    fn get_tables(&mut self) -> Vec<Table>;
+    fn get_tables(&mut self) -> SqlzResult<Vec<Table>>;
 }
