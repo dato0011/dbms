@@ -14,13 +14,13 @@ fn main() {
                 //println!("Table: {}", table.name);
                 for column in table.columns {
                     //println!("  - {}", column.name);
-                    set.insert(column.native_type);
+                    set.insert(column.native_type.clone());
                 }
             }
         }
         Err(e) => eprintln!("Failed to fetch tables: {}", e),
     }
-    
+
     for typ in set {
         println!("Type: {}", typ);
     }

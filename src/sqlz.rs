@@ -1,5 +1,6 @@
 use std::error::Error;
 use std::fmt;
+use std::rc::Rc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GenericType {
@@ -28,7 +29,34 @@ pub enum GenericType {
 
     // Add more like Decimal(precision, scale) for numerics with arbitrary precision/scale
     Decimal { precision: usize, scale: usize },
-    UserDefined(String)
+    UserDefined(String),
+}
+
+pub enum ForeignKeyAction {
+    NoAction,
+    Restrict,
+    SetNull,
+    SetDefault,
+    Cascade,
+}
+
+pub enum ConstraintType {
+    PrimaryKey {
+        constraint_name: String,
+        columns: Vec<Rc<Column>>,
+    },
+    Unique {
+        constraint_name: String,
+        columns: Vec<Rc<Column>>,
+    },
+    ForeignKey {
+        constraint_name: String,
+        source_column: Rc<Column>,
+        referenced_table: String,
+        referenced_column: Rc<Column>,
+        on_update: ForeignKeyAction,
+        on_delete: ForeignKeyAction,
+    },
 }
 
 pub struct Column {
@@ -42,7 +70,8 @@ pub struct Column {
 
 pub struct Table {
     pub name: String,
-    pub columns: Vec<Column>,
+    pub columns: Vec<Rc<Column>>,
+    pub constraints: Vec<ConstraintType>,
 }
 
 #[derive(Debug)]
