@@ -31,9 +31,7 @@ impl Provider for PostgresqlProvider {
         // 1. Initialize tables and columns
         let mut tables: Vec<Table> = rows
             .into_iter()
-            .map(|row| {
-                read_table(&mut self.client, row.get(0))
-            })
+            .map(|row| read_table(&mut self.client, row.get(0)))
             .collect::<SqlzResult<_>>()?;
 
         // 2. Build a flat lookup map for columns to avoid O(N^2) searches and borrowing issues
@@ -60,7 +58,9 @@ impl Provider for PostgresqlProvider {
         let mut result = Vec::with_capacity(tables.len());
         let table_names: Vec<&str> = tables.iter().map(|t| t.name.as_str()).collect();
 
-        let rows = self.client.query(queries::SELECT_TABLES_EXISTS, &[&table_names])
+        let rows = self
+            .client
+            .query(queries::SELECT_TABLES_EXISTS, &[&table_names])
             .map_err(|e| SqlzError::DatabaseError(Box::new(e)))?;
 
         rows.iter().for_each(|row| result.push(row.get(0)));
@@ -109,7 +109,8 @@ fn read_table(client: &mut Client, table_name: String) -> SqlzResult<Table> {
 }
 
 fn fill_constraints(client: &mut Client, table: &mut Table) -> SqlzResult<()> {
-    let rows = client.query(queries::SELECT_CONSTRAINTS, &[&table.name])
+    let rows = client
+        .query(queries::SELECT_CONSTRAINTS, &[&table.name])
         .map_err(|e| SqlzError::DatabaseError(Box::new(e)))?;
 
     for row in rows {
@@ -171,7 +172,8 @@ fn fill_foreign_keys(
     table: &mut Table,
     column_lookup: &HashMap<(String, String), Rc<Column>>,
 ) -> SqlzResult<()> {
-    let rows = client.query(queries::SELECT_FOREIGN_KEYS, &[&table.name])
+    let rows = client
+        .query(queries::SELECT_FOREIGN_KEYS, &[&table.name])
         .map_err(|e| SqlzError::DatabaseError(Box::new(e)))?;
 
     for row in rows {
@@ -199,10 +201,10 @@ fn fill_foreign_keys(
 
 fn map_fk_action(action: &str) -> ForeignKeyAction {
     match action {
-        "CASCADE" => ForeignKeyAction::Cascade,
-        "SET NULL" => ForeignKeyAction::SetNull,
-        "SET DEFAULT" => ForeignKeyAction::SetDefault,
-        "RESTRICT" => ForeignKeyAction::Restrict,
+        constants::FK_ACTION_CASCADE => ForeignKeyAction::Cascade,
+        constants::FK_ACTION_SET_NULL => ForeignKeyAction::SetNull,
+        constants::FK_ACTION_SET_DEFAULT => ForeignKeyAction::SetDefault,
+        constants::FK_ACTION_RESTRICT => ForeignKeyAction::Restrict,
         _ => ForeignKeyAction::NoAction,
     }
 }
@@ -216,35 +218,60 @@ fn map_native_type_to_sqlz(
 ) -> GenericType {
     match native_type {
         // Integers
-        "int2" => GenericType::SmallInt,
-        "int4" => GenericType::Integer,
-        "int8" => GenericType::BigInt,
+        constants::NATIVE_TYPE_INT2 => GenericType::SmallInt,
+        constants::NATIVE_TYPE_INT4 => GenericType::Integer,
+        constants::NATIVE_TYPE_INT8 => GenericType::BigInt,
 
         // Floats
-        "float4" => GenericType::Float,
-        "float8" => GenericType::Double,
-        "numeric" => GenericType::Decimal {
+        constants::NATIVE_TYPE_FLOAT4 => GenericType::Float,
+        constants::NATIVE_TYPE_FLOAT8 => GenericType::Double,
+        constants::NATIVE_TYPE_NUMERIC => GenericType::Decimal {
             precision: precision.unwrap_or(0) as usize,
             scale: scale.unwrap_or(0) as usize,
         },
 
         // Strings/Chars
-        "varchar" => GenericType::VarChar(char_len.unwrap_or(0) as usize),
-        "bpchar" => GenericType::Char(char_len.unwrap_or(0) as usize), // "Blank-padded char"
-        "text" | "name" => GenericType::Text,
+        constants::NATIVE_TYPE_VARCHAR => GenericType::VarChar(char_len.unwrap_or(0) as usize),
+        constants::NATIVE_TYPE_BPCHAR => GenericType::Char(char_len.unwrap_or(0) as usize), // "Blank-padded char"
+        constants::NATIVE_TYPE_TEXT | constants::NATIVE_TYPE_NAME => GenericType::Text,
 
-        "bytea" => GenericType::Blob(0),
+        constants::NATIVE_TYPE_BYTEA => GenericType::Blob(0),
 
         // Booleans
-        "bool" => GenericType::Boolean,
+        constants::NATIVE_TYPE_BOOL => GenericType::Boolean,
 
         // Date/Time
-        "date" => GenericType::Date,
-        "timestamp" | "timestamptz" => GenericType::Timestamp,
+        constants::NATIVE_TYPE_DATE => GenericType::Date,
+        constants::NATIVE_TYPE_TIMESTAMP | constants::NATIVE_TYPE_TIMESTAMPTZ => {
+            GenericType::Timestamp
+        }
 
-        // Fallback for custom types (like mpaa_rating in dvdrental)
+        // Fallback for custom types
         _ => GenericType::UserDefined(native_type.to_string()),
     }
+}
+
+mod constants {
+    pub const NATIVE_TYPE_INT2: &str = "int2";
+    pub const NATIVE_TYPE_INT4: &str = "int4";
+    pub const NATIVE_TYPE_INT8: &str = "int8";
+    pub const NATIVE_TYPE_FLOAT4: &str = "float4";
+    pub const NATIVE_TYPE_FLOAT8: &str = "float8";
+    pub const NATIVE_TYPE_NUMERIC: &str = "numeric";
+    pub const NATIVE_TYPE_VARCHAR: &str = "varchar";
+    pub const NATIVE_TYPE_BPCHAR: &str = "bpchar";
+    pub const NATIVE_TYPE_TEXT: &str = "text";
+    pub const NATIVE_TYPE_NAME: &str = "name";
+    pub const NATIVE_TYPE_BYTEA: &str = "bytea";
+    pub const NATIVE_TYPE_BOOL: &str = "bool";
+    pub const NATIVE_TYPE_DATE: &str = "date";
+    pub const NATIVE_TYPE_TIMESTAMP: &str = "timestamp";
+    pub const NATIVE_TYPE_TIMESTAMPTZ: &str = "timestamptz";
+
+    pub const FK_ACTION_CASCADE: &str = "CASCADE";
+    pub const FK_ACTION_SET_NULL: &str = "SET NULL";
+    pub const FK_ACTION_SET_DEFAULT: &str = "SET DEFAULT";
+    pub const FK_ACTION_RESTRICT: &str = "RESTRICT";
 }
 
 mod queries {
@@ -302,7 +329,7 @@ mod queries {
           AND tc.table_schema = 'public'
           AND tc.table_name = $1
         ORDER BY tc.constraint_name, kcu.ordinal_position;";
-    
+
     pub const SELECT_TABLES_EXISTS: &str = "\
         SELECT table_name FROM information_schema.tables \
         WHERE table_schema = 'public' AND table_name = ANY($1);";
