@@ -32,14 +32,7 @@ impl Provider for PostgresqlProvider {
         let mut tables: Vec<Table> = rows
             .into_iter()
             .map(|row| {
-                read_table(
-                    &mut self.client,
-                    Table {
-                        name: row.get(0),
-                        columns: Vec::new(),
-                        constraints: Vec::new(),
-                    },
-                )
+                read_table(&mut self.client, row.get(0))
             })
             .collect::<SqlzResult<_>>()?;
 
@@ -56,15 +49,21 @@ impl Provider for PostgresqlProvider {
 
         // 3. Fill constraints and foreign keys using the lookup map
         for table in tables.iter_mut() {
-            fill_constraints(&mut self.client, table);
-            fill_foreign_keys(&mut self.client, table, &column_lookup);
+            fill_constraints(&mut self.client, table)?;
+            fill_foreign_keys(&mut self.client, table, &column_lookup)?;
         }
 
         Ok(tables)
     }
 }
 
-fn read_table(client: &mut Client, mut table: Table) -> SqlzResult<Table> {
+fn read_table(client: &mut Client, table_name: String) -> SqlzResult<Table> {
+    let mut table = Table {
+        name: table_name,
+        columns: Vec::new(),
+        constraints: Vec::new(),
+    };
+
     let column_rows = client
         .query(queries::SELECT_COLUMNS, &[&table.name])
         .map_err(|e| SqlzError::DatabaseError(Box::new(e)))?;
@@ -97,70 +96,71 @@ fn read_table(client: &mut Client, mut table: Table) -> SqlzResult<Table> {
     Ok(table)
 }
 
-fn fill_constraints(client: &mut Client, table: &mut Table) {
-    if let Ok(rows) = client.query(queries::SELECT_CONSTRAINTS, &[&table.name]) {
-        for row in rows {
-            let constraint_name: String = row.get(0);
-            let constraint_type: String = row.get(1);
-            let column_name: String = row.get(2);
+fn fill_constraints(client: &mut Client, table: &mut Table) -> SqlzResult<()> {
+    let rows = client.query(queries::SELECT_CONSTRAINTS, &[&table.name])
+        .map_err(|e| SqlzError::DatabaseError(Box::new(e)))?;
 
-            let column = table
-                .columns
-                .iter()
-                .find(|c| c.name == column_name)
-                .cloned();
+    for row in rows {
+        let constraint_name: String = row.get(0);
+        let constraint_type: String = row.get(1);
+        let column_name: String = row.get(2);
 
-            if let Some(col) = column {
-                match constraint_type.as_str() {
-                    "PRIMARY KEY" => {
-                        // Check if we already have this PK (for multi-column PKs)
-                        if let Some(ConstraintType::PrimaryKey { columns, .. }) = table
-                            .constraints
-                            .iter_mut()
-                            .find(|c| matches!(c, ConstraintType::PrimaryKey { .. }))
-                        {
-                            columns.push(col);
-                        } else {
-                            table.constraints.push(ConstraintType::PrimaryKey {
-                                constraint_name,
-                                columns: vec![col],
-                            });
-                        }
+        let column = table
+            .columns
+            .iter()
+            .find(|c| c.name == column_name)
+            .cloned();
+
+        if let Some(col) = column {
+            match constraint_type.as_str() {
+                "PRIMARY KEY" => {
+                    // Check if we already have this PK (for multi-column PKs)
+                    if let Some(ConstraintType::PrimaryKey { columns, .. }) = table
+                        .constraints
+                        .iter_mut()
+                        .find(|c| matches!(c, ConstraintType::PrimaryKey { .. }))
+                    {
+                        columns.push(col);
+                    } else {
+                        table.constraints.push(ConstraintType::PrimaryKey {
+                            constraint_name,
+                            columns: vec![col],
+                        });
                     }
-                    "UNIQUE" => {
-                        // Group unique constraints by name
-                        if let Some(ConstraintType::Unique { columns, .. }) =
-                            table.constraints.iter_mut().find(|c| match c {
-                                ConstraintType::Unique {
-                                    constraint_name: n, ..
-                                } => n == &constraint_name,
-                                _ => false,
-                            })
-                        {
-                            columns.push(col);
-                        } else {
-                            table.constraints.push(ConstraintType::Unique {
-                                constraint_name,
-                                columns: vec![col],
-                            });
-                        }
-                    }
-                    _ => {}
                 }
+                "UNIQUE" => {
+                    // Group unique constraints by name
+                    if let Some(ConstraintType::Unique { columns, .. }) =
+                        table.constraints.iter_mut().find(|c| match c {
+                            ConstraintType::Unique {
+                                constraint_name: n, ..
+                            } => n == &constraint_name,
+                            _ => false,
+                        })
+                    {
+                        columns.push(col);
+                    } else {
+                        table.constraints.push(ConstraintType::Unique {
+                            constraint_name,
+                            columns: vec![col],
+                        });
+                    }
+                }
+                _ => {}
             }
         }
     }
+
+    Ok(())
 }
 
 fn fill_foreign_keys(
     client: &mut Client,
     table: &mut Table,
     column_lookup: &HashMap<(String, String), Rc<Column>>,
-) {
-    let rows = match client.query(queries::SELECT_FOREIGN_KEYS, &[&table.name]) {
-        Ok(rows) => rows,
-        Err(_) => return,
-    };
+) -> SqlzResult<()> {
+    let rows = client.query(queries::SELECT_FOREIGN_KEYS, &[&table.name])
+        .map_err(|e| SqlzError::DatabaseError(Box::new(e)))?;
 
     for row in rows {
         let column_name: String = row.get(1);
@@ -181,6 +181,8 @@ fn fill_foreign_keys(
             });
         }
     }
+
+    Ok(())
 }
 
 fn map_fk_action(action: &str) -> ForeignKeyAction {
