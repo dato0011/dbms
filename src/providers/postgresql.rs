@@ -55,6 +55,18 @@ impl Provider for PostgresqlProvider {
 
         Ok(tables)
     }
+
+    fn tables_exists(&mut self, tables: &[Table]) -> SqlzResult<Vec<String>> {
+        let mut result = Vec::with_capacity(tables.len());
+        let table_names: Vec<&str> = tables.iter().map(|t| t.name.as_str()).collect();
+
+        let rows = self.client.query(queries::SELECT_TABLES_EXISTS, &[&table_names])
+            .map_err(|e| SqlzError::DatabaseError(Box::new(e)))?;
+
+        rows.iter().for_each(|row| result.push(row.get(0)));
+
+        Ok(result)
+    }
 }
 
 fn read_table(client: &mut Client, table_name: String) -> SqlzResult<Table> {
@@ -290,4 +302,8 @@ mod queries {
           AND tc.table_schema = 'public'
           AND tc.table_name = $1
         ORDER BY tc.constraint_name, kcu.ordinal_position;";
+    
+    pub const SELECT_TABLES_EXISTS: &str = "\
+        SELECT table_name FROM information_schema.tables \
+        WHERE table_schema = 'public' AND table_name = ANY($1);";
 }

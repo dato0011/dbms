@@ -95,4 +95,5 @@ pub type SqlzResult<T> = Result<T, SqlzError>;
 
 pub trait Provider {
     fn get_tables(&mut self) -> SqlzResult<Vec<Table>>;
+    fn tables_exists(&mut self, tables: &[Table]) -> SqlzResult<Vec<String>>;
 }

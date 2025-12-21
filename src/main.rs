@@ -8,17 +8,16 @@ pub mod providers;
 fn main() {
     let mut provider = PostgresqlProvider::new().unwrap();
     let mut set = HashSet::new();
-    match provider.get_tables() {
-        Ok(tables) => {
-            for table in tables {
-                //println!("Table: {}", table.name);
-                for column in table.columns {
-                    //println!("  - {}", column.name);
-                    set.insert(column.native_type.clone());
-                }
+    if let Ok(tables) = provider.get_tables() {
+        for table in tables {
+            //println!("Table: {}", table.name);
+            for column in table.columns {
+                //println!("  - {}", column.name);
+                set.insert(column.native_type.clone());
             }
         }
-        Err(e) => eprintln!("Failed to fetch tables: {}", e),
+    } else if let Err(e) = provider.get_tables() {
+        eprintln!("Failed to fetch tables: {}", e)
     }
 
     for typ in set {
