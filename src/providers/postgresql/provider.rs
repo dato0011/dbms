@@ -34,7 +34,7 @@ impl Provider for PostgresqlProvider {
         // 1. Initialize tables and columns
         let mut tables: Vec<Table> = rows
             .into_iter()
-            .map(|row| read_table(&mut self.client, row.get(0)))
+            .map(|row| read_table(&mut self.client, row.get("table_name")))
             .collect::<SqlzResult<_>>()?;
 
         // 2. Build a flat lookup map for columns to avoid O(N^2) searches and borrowing issues
@@ -66,7 +66,7 @@ impl Provider for PostgresqlProvider {
             .query(queries::SELECT_TABLES_EXISTS, &[&table_names])
             .map_err(|e| SqlzError::DatabaseError(Box::new(e)))?;
 
-        rows.iter().for_each(|row| result.push(row.get(0)));
+        rows.iter().for_each(|row| result.push(row.get("table_name")));
 
         Ok(result)
     }
@@ -138,11 +138,11 @@ fn read_table(client: &mut Client, table_name: String) -> SqlzResult<Table> {
         .map_err(|e| SqlzError::DatabaseError(Box::new(e)))?;
 
     for row in column_rows {
-        let data_type: String = row.get(1);
-        let udt_name: String = row.get(7);
-        let char_len: Option<i32> = row.get(2);
-        let mut numeric_precision: Option<i32> = row.get(3);
-        let mut numeric_scale: Option<i32> = row.get(4);
+        let data_type: String = row.get("data_type");
+        let udt_name: String = row.get("udt_name");
+        let char_len: Option<i32> = row.get("character_maximum_length");
+        let mut numeric_precision: Option<i32> = row.get("numeric_precision");
+        let mut numeric_scale: Option<i32> = row.get("numeric_scale");
 
         let col_type = map_native_type_to_sqlz(
             &data_type,
@@ -158,11 +158,11 @@ fn read_table(client: &mut Client, table_name: String) -> SqlzResult<Table> {
         }
 
         table.columns.push(Rc::new(Column {
-            name: row.get(0),
-            is_nullable: row.get::<_, String>(5) == "YES",
+            name: row.get("column_name"),
+            is_nullable: row.get::<_, String>("is_nullable") == "YES",
             col_type,
             native_type: udt_name,
-            is_identity: row.get::<_, String>(8) == "YES",
+            is_identity: row.get::<_, String>("is_identity") == "YES",
             max_length: char_len,
             numeric_precision,
             numeric_scale,
@@ -178,9 +178,9 @@ fn fill_constraints(client: &mut Client, table: &mut Table) -> SqlzResult<()> {
         .map_err(|e| SqlzError::DatabaseError(Box::new(e)))?;
 
     for row in rows {
-        let constraint_name: String = row.get(0);
-        let constraint_type: String = row.get(1);
-        let column_name: String = row.get(2);
+        let constraint_name: String = row.get("constraint_name");
+        let constraint_type: String = row.get("constraint_type");
+        let column_name: String = row.get("column_name");
 
         let column = table
             .columns
@@ -241,21 +241,21 @@ fn fill_foreign_keys(
         .map_err(|e| SqlzError::DatabaseError(Box::new(e)))?;
 
     for row in rows {
-        let column_name: String = row.get(1);
-        let foreign_table: String = row.get(3);
-        let foreign_column: String = row.get(4);
+        let column_name: String = row.get("column_name");
+        let foreign_table: String = row.get("foreign_table_name");
+        let foreign_column: String = row.get("foreign_column_name");
 
         let source = table.columns.iter().find(|c| c.name == column_name);
         let target = column_lookup.get(&(foreign_table.clone(), foreign_column));
 
         if let (Some(src_col), Some(ref_col)) = (source, target) {
             table.constraints.push(ConstraintType::ForeignKey {
-                constraint_name: row.get(0),
+                constraint_name: row.get("constraint_name"),
                 source_column: Rc::clone(src_col),
                 referenced_table: foreign_table,
                 referenced_column: Rc::clone(ref_col),
-                on_update: map_fk_action(&row.get::<_, String>(5)),
-                on_delete: map_fk_action(&row.get::<_, String>(6)),
+                on_update: map_fk_action(&row.get::<_, String>("on_update")),
+                on_delete: map_fk_action(&row.get::<_, String>("on_delete")),
             });
         }
     }
