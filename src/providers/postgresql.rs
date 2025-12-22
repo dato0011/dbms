@@ -83,10 +83,13 @@ impl Provider for PostgresqlProvider {
         for col in &plan.table.columns {
             let type_str = plan.target_column_type_map.get(&col.name).unwrap();
             let mut def = format!("    {} {}", col.name, type_str);
+
             if let GenericType::Decimal { .. } = col.col_type {
                 let precision = col.numeric_precision.unwrap();
                 let scale = col.numeric_scale.unwrap();
                 def.push_str(&format!("({},{})", precision, scale));
+            } else if let Some(max_len) = col.max_length {
+                def.push_str(&format!("({})", max_len));
             }
 
             if col.is_identity {
@@ -268,7 +271,7 @@ fn map_fk_action(action: &str) -> ForeignKeyAction {
     }
 }
 
-fn map_native_type_to_sqlz(
+pub fn map_native_type_to_sqlz(
     _data_type: &str,
     native_type: &str,
     char_len: Option<i32>,
@@ -277,6 +280,7 @@ fn map_native_type_to_sqlz(
 ) -> GenericType {
     match native_type {
         // Integers
+        constants::NATIVE_TYPE_INT => GenericType::TinyInt,
         constants::NATIVE_TYPE_INT2 => GenericType::SmallInt,
         constants::NATIVE_TYPE_INT4 => GenericType::Integer,
         constants::NATIVE_TYPE_INT8 => GenericType::BigInt,
@@ -310,7 +314,34 @@ fn map_native_type_to_sqlz(
     }
 }
 
+pub fn map_sqlz_to_native_type(generic_type: &GenericType) -> String {
+    match generic_type {
+        GenericType::TinyInt => constants::NATIVE_TYPE_INT.to_string(),
+        GenericType::SmallInt => constants::NATIVE_TYPE_INT2.to_string(),
+        GenericType::Integer => constants::NATIVE_TYPE_INT4.to_string(),
+        GenericType::BigInt => constants::NATIVE_TYPE_INT8.to_string(),
+
+        GenericType::Float => constants::NATIVE_TYPE_FLOAT4.to_string(),
+        GenericType::Double => constants::NATIVE_TYPE_FLOAT8.to_string(),
+        GenericType::Decimal { .. } => constants::NATIVE_TYPE_NUMERIC.to_string(),
+
+        GenericType::VarChar(_) => constants::NATIVE_TYPE_VARCHAR.to_string(),
+        GenericType::Char(_) => constants::NATIVE_TYPE_BPCHAR.to_string(),
+        GenericType::Text => constants::NATIVE_TYPE_TEXT.to_string(),
+
+        GenericType::Blob(_) => constants::NATIVE_TYPE_BYTEA.to_string(),
+
+        GenericType::Boolean => constants::NATIVE_TYPE_BOOL.to_string(),
+
+        GenericType::Date => constants::NATIVE_TYPE_DATE.to_string(),
+        GenericType::Timestamp => constants::NATIVE_TYPE_TIMESTAMP.to_string(),
+
+        GenericType::UserDefined(_) => "text".to_string(),
+    }
+}
+
 mod constants {
+    pub const NATIVE_TYPE_INT: &str = "int";
     pub const NATIVE_TYPE_INT2: &str = "int2";
     pub const NATIVE_TYPE_INT4: &str = "int4";
     pub const NATIVE_TYPE_INT8: &str = "int8";

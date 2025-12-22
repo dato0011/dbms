@@ -3,6 +3,7 @@
     <words>
       <w>bpchar</w>
       <w>sqlz</w>
+      <w>timestamptz</w>
     </words>
   </dictionary>
 </component>
