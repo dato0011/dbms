@@ -1,26 +1,15 @@
-use std::collections::HashSet;
 use providers::postgresql::PostgresqlProvider;
 use sqlz::Provider;
+use crate::sqlz::MigrationPlan;
 
 pub mod sqlz;
 pub mod providers;
 
 fn main() {
     let mut provider = PostgresqlProvider::new().unwrap();
-    let mut set = HashSet::new();
-    if let Ok(tables) = provider.get_tables() {
-        for table in tables {
-            //println!("Table: {}", table.name);
-            for column in table.columns {
-                //println!("  - {}", column.name);
-                set.insert(column.native_type.clone());
-            }
-        }
-    } else if let Err(e) = provider.get_tables() {
-        eprintln!("Failed to fetch tables: {}", e)
-    }
-
-    for typ in set {
-        println!("Type: {}", typ);
-    }
+    let tables = provider.get_tables().unwrap();
+    let film = tables.iter().find(|t| t.name == "film").unwrap();
+    let mut plan = MigrationPlan::new(film);
+    film.columns.iter().for_each(|c| {plan.target_column_type_map.insert(c.name.clone(), String::from("test_col"));});
+    provider.generate_schema(&plan).unwrap();
 }

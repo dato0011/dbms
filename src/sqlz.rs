@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
 use std::rc::Rc;
@@ -63,9 +64,11 @@ pub struct Column {
     pub name: String,
     pub col_type: GenericType,
     pub native_type: String,
-    pub nullable: bool,
+    pub is_nullable: bool,
     pub is_identity: bool,
-    pub max_length: Option<usize>,
+    pub max_length: Option<i32>,
+    pub numeric_precision: Option<i32>,
+    pub numeric_scale: Option<i32>,
 }
 
 pub struct Table {
@@ -74,10 +77,16 @@ pub struct Table {
     pub constraints: Vec<ConstraintType>,
 }
 
+pub struct MigrationPlan<'a> {
+    pub table: &'a Table,
+    pub target_column_type_map: HashMap<String, String>,
+}
+
 #[derive(Debug)]
 pub enum SqlzError {
     ConnectionError(String),
     DatabaseError(Box<dyn Error + Send + Sync>),
+    MappingError(String),
 }
 
 impl fmt::Display for SqlzError {
@@ -85,7 +94,22 @@ impl fmt::Display for SqlzError {
         match self {
             SqlzError::ConnectionError(msg) => write!(f, "Connection error: {}", msg),
             SqlzError::DatabaseError(err) => write!(f, "Underlying database error: {}", err),
+            SqlzError::MappingError(msg) => write!(f, "Mapping error: {}", msg),
         }
+    }
+}
+
+impl<'a> MigrationPlan<'a> {
+    pub fn new(table: &'a Table) -> Self {
+        Self {
+            table,
+            target_column_type_map: HashMap::new(),
+        }
+    }
+
+    pub fn is_valid(&self) -> bool {
+        // TODO: Validate that source column type maps to target column types
+        self.table.columns.iter().all(|c| self.target_column_type_map.contains_key(&c.name))
     }
 }
 
@@ -96,4 +120,7 @@ pub type SqlzResult<T> = Result<T, SqlzError>;
 pub trait Provider {
     fn get_tables(&mut self) -> SqlzResult<Vec<Table>>;
     fn tables_exists(&mut self, tables: &[Table]) -> SqlzResult<Vec<String>>;
+    fn generate_schema(&mut self, plan: &MigrationPlan) -> SqlzResult<()>;
+    fn migrate_data(&mut self, plan: &MigrationPlan) -> SqlzResult<()>;
+    fn create_constraints(&mut self, plan: &MigrationPlan) -> SqlzResult<()>;
 }
