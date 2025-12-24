@@ -33,6 +33,29 @@ pub enum GenericType {
     UserDefined(String),
 }
 
+#[derive(Debug, Clone)]
+pub enum SqlzValue {
+    Null,
+    Bool(bool),
+    TinyInt(i8),
+    SmallInt(i16),
+    Integer(i32),
+    BigInt(i64),
+    Float(f32),
+    Double(f64),
+    Decimal(String), // Store as string to preserve precision across DBs
+    Text(String),
+    Bytes(Vec<u8>),
+    Date(chrono::NaiveDate),      // ISO 8601
+    Timestamp(chrono::NaiveDateTime), // ISO 8601
+    Blob(Vec<u8>),
+}
+
+pub struct SqlzRow {
+    pub columns: Vec<String>,
+    pub values: Vec<SqlzValue>,
+}
+
 pub enum ForeignKeyAction {
     NoAction,
     Restrict,
@@ -113,14 +136,24 @@ impl<'a> MigrationPlan<'a> {
     }
 }
 
+impl SqlzRow {
+    pub fn get(&self, column_name: &str) -> Option<&SqlzValue> {
+        self.columns
+            .iter()
+            .position(|c| c == column_name)
+            .and_then(|i| self.values.get(i))
+    }
+}
+
 impl Error for SqlzError {}
 
 pub type SqlzResult<T> = Result<T, SqlzError>;
 
-pub trait Provider {
+pub trait Provider<T> {
     fn get_tables(&mut self) -> SqlzResult<Vec<Table>>;
     fn tables_exists(&mut self, tables: &[Table]) -> SqlzResult<Vec<String>>;
     fn generate_schema(&mut self, plan: &MigrationPlan) -> SqlzResult<()>;
     fn migrate_data(&mut self, plan: &MigrationPlan) -> SqlzResult<()>;
     fn create_constraints(&mut self, plan: &MigrationPlan) -> SqlzResult<()>;
+    fn convert_row(&self, row: &T) -> SqlzRow;
 }

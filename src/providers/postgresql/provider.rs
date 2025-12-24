@@ -1,9 +1,9 @@
+use super::constants;
+use super::{helper, queries};
 use crate::sqlz::{
     Column, ConstraintType, ForeignKeyAction, GenericType, MigrationPlan, Provider, SqlzError,
-    SqlzResult, Table,
+    SqlzResult, SqlzRow, SqlzValue, Table,
 };
-use super::queries;
-use super::constants;
 use postgres::{Client, NoTls};
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -13,7 +13,7 @@ pub struct PostgresqlProvider {
 }
 
 impl PostgresqlProvider {
-    pub fn new() -> SqlzResult<impl Provider> {
+    pub fn new() -> SqlzResult<impl Provider<postgres::Row>> {
         Ok(PostgresqlProvider {
             client: Client::connect(
                 "host=localhost user=postgres password=111 dbname=dvdrental",
@@ -24,7 +24,7 @@ impl PostgresqlProvider {
     }
 }
 
-impl Provider for PostgresqlProvider {
+impl Provider<postgres::Row> for PostgresqlProvider {
     fn get_tables(&mut self) -> SqlzResult<Vec<Table>> {
         let rows = self
             .client
@@ -66,7 +66,8 @@ impl Provider for PostgresqlProvider {
             .query(queries::SELECT_TABLES_EXISTS, &[&table_names])
             .map_err(|e| SqlzError::DatabaseError(Box::new(e)))?;
 
-        rows.iter().for_each(|row| result.push(row.get("table_name")));
+        rows.iter()
+            .for_each(|row| result.push(row.get("table_name")));
 
         Ok(result)
     }
@@ -124,6 +125,41 @@ impl Provider for PostgresqlProvider {
     fn create_constraints(&mut self, _plan: &MigrationPlan) -> SqlzResult<()> {
         todo!()
     }
+
+    fn convert_row(&self, row: &postgres::Row) -> SqlzRow {
+        let mut columns = Vec::new();
+        let mut values = Vec::new();
+
+        for (i, column) in row.columns().iter().enumerate() {
+            columns.push(column.name().to_string());
+
+            // Map Postgres types to our Generic SqlzValue
+            // Note: In a real app, you'd match on column.type()
+            let val = match column.type_().name() {
+                "bool" => row.get::<_, Option<bool>>(i).map(SqlzValue::Bool),
+                "int2" => row.get::<_, Option<i16>>(i).map(SqlzValue::SmallInt),
+                "int4" => row.get::<_, Option<i32>>(i).map(SqlzValue::Integer),
+                "int8" => row.get::<_, Option<i64>>(i).map(SqlzValue::BigInt),
+                "float4" => row.get::<_, Option<f32>>(i).map(SqlzValue::Float),
+                "float8" => row.get::<_, Option<f64>>(i).map(SqlzValue::Double),
+                "text" | "varchar" | "bpchar" | "name" => {
+                    row.get::<_, Option<String>>(i).map(SqlzValue::Text)
+                }
+                "numeric" => row
+                    .get::<_, Option<String>>(i)
+                    .map(|d| SqlzValue::Decimal(d.to_string())),
+                _ => Some(SqlzValue::Text(format!(
+                    "{:?}",
+                    row.get::<_, Option<String>>(i)
+                ))),
+            }
+            .unwrap_or(SqlzValue::Null);
+
+            values.push(val);
+        }
+
+        SqlzRow { columns, values }
+    }
 }
 
 fn read_table(client: &mut Client, table_name: String) -> SqlzResult<Table> {
@@ -144,7 +180,7 @@ fn read_table(client: &mut Client, table_name: String) -> SqlzResult<Table> {
         let mut numeric_precision: Option<i32> = row.get("numeric_precision");
         let mut numeric_scale: Option<i32> = row.get("numeric_scale");
 
-        let col_type = map_native_type_to_sqlz(
+        let col_type = helper::map_native_type_to_sqlz(
             &data_type,
             &udt_name,
             char_len,
@@ -254,90 +290,11 @@ fn fill_foreign_keys(
                 source_column: Rc::clone(src_col),
                 referenced_table: foreign_table,
                 referenced_column: Rc::clone(ref_col),
-                on_update: map_fk_action(&row.get::<_, String>("on_update")),
-                on_delete: map_fk_action(&row.get::<_, String>("on_delete")),
+                on_update: helper::map_fk_action(&row.get::<_, String>("on_update")),
+                on_delete: helper::map_fk_action(&row.get::<_, String>("on_delete")),
             });
         }
     }
 
     Ok(())
-}
-
-fn map_fk_action(action: &str) -> ForeignKeyAction {
-    match action {
-        constants::FK_ACTION_CASCADE => ForeignKeyAction::Cascade,
-        constants::FK_ACTION_SET_NULL => ForeignKeyAction::SetNull,
-        constants::FK_ACTION_SET_DEFAULT => ForeignKeyAction::SetDefault,
-        constants::FK_ACTION_RESTRICT => ForeignKeyAction::Restrict,
-        _ => ForeignKeyAction::NoAction,
-    }
-}
-
-pub fn map_native_type_to_sqlz(
-    _data_type: &str,
-    native_type: &str,
-    char_len: Option<i32>,
-    precision: Option<i32>,
-    scale: Option<i32>,
-) -> GenericType {
-    match native_type {
-        // Integers
-        constants::NATIVE_TYPE_INT => GenericType::TinyInt,
-        constants::NATIVE_TYPE_INT2 => GenericType::SmallInt,
-        constants::NATIVE_TYPE_INT4 => GenericType::Integer,
-        constants::NATIVE_TYPE_INT8 => GenericType::BigInt,
-
-        // Floats
-        constants::NATIVE_TYPE_FLOAT4 => GenericType::Float,
-        constants::NATIVE_TYPE_FLOAT8 => GenericType::Double,
-        constants::NATIVE_TYPE_NUMERIC | constants::NATIVE_TYPE_DECIMAL => GenericType::Decimal {
-            precision: precision.unwrap() as usize,
-            scale: scale.unwrap() as usize,
-        },
-
-        // Strings/Chars
-        constants::NATIVE_TYPE_VARCHAR => GenericType::VarChar(char_len.unwrap_or(0) as usize),
-        constants::NATIVE_TYPE_BPCHAR => GenericType::Char(char_len.unwrap_or(0) as usize), // "Blank-padded char"
-        constants::NATIVE_TYPE_TEXT | constants::NATIVE_TYPE_NAME => GenericType::Text,
-
-        constants::NATIVE_TYPE_BYTEA => GenericType::Blob(0),
-
-        // Booleans
-        constants::NATIVE_TYPE_BOOL => GenericType::Boolean,
-
-        // Date/Time
-        constants::NATIVE_TYPE_DATE => GenericType::Date,
-        constants::NATIVE_TYPE_TIMESTAMP | constants::NATIVE_TYPE_TIMESTAMPTZ => {
-            GenericType::Timestamp
-        }
-
-        // Fallback for custom types
-        _ => GenericType::UserDefined(native_type.to_string()),
-    }
-}
-
-pub fn map_sqlz_to_native_type(generic_type: &GenericType) -> String {
-    match generic_type {
-        GenericType::TinyInt => constants::NATIVE_TYPE_INT.to_string(),
-        GenericType::SmallInt => constants::NATIVE_TYPE_INT2.to_string(),
-        GenericType::Integer => constants::NATIVE_TYPE_INT4.to_string(),
-        GenericType::BigInt => constants::NATIVE_TYPE_INT8.to_string(),
-
-        GenericType::Float => constants::NATIVE_TYPE_FLOAT4.to_string(),
-        GenericType::Double => constants::NATIVE_TYPE_FLOAT8.to_string(),
-        GenericType::Decimal { .. } => constants::NATIVE_TYPE_NUMERIC.to_string(),
-
-        GenericType::VarChar(_) => constants::NATIVE_TYPE_VARCHAR.to_string(),
-        GenericType::Char(_) => constants::NATIVE_TYPE_BPCHAR.to_string(),
-        GenericType::Text => constants::NATIVE_TYPE_TEXT.to_string(),
-
-        GenericType::Blob(_) => constants::NATIVE_TYPE_BYTEA.to_string(),
-
-        GenericType::Boolean => constants::NATIVE_TYPE_BOOL.to_string(),
-
-        GenericType::Date => constants::NATIVE_TYPE_DATE.to_string(),
-        GenericType::Timestamp => constants::NATIVE_TYPE_TIMESTAMP.to_string(),
-
-        GenericType::UserDefined(_) => "text".to_string(),
-    }
 }

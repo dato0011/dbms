@@ -4,4 +4,6 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-postgres = "0.19.12"
+chrono = "0.4.42"
+postgres = {version="0.19.12", features = ["with-chrono-0_4"]}
+rust_decimal = "1.39.0"

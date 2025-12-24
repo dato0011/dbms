@@ -9,7 +9,6 @@ pub const NATIVE_TYPE_DECIMAL: &str = "decimal";
 pub const NATIVE_TYPE_VARCHAR: &str = "varchar";
 pub const NATIVE_TYPE_BPCHAR: &str = "bpchar";
 pub const NATIVE_TYPE_TEXT: &str = "text";
-pub const NATIVE_TYPE_NAME: &str = "name";
 pub const NATIVE_TYPE_BYTEA: &str = "bytea";
 pub const NATIVE_TYPE_BOOL: &str = "bool";
 pub const NATIVE_TYPE_DATE: &str = "date";
