@@ -1,7 +1,7 @@
 use super::constants;
 use super::{helper, queries};
 use crate::sqlz::{
-    Column, ConstraintType, ForeignKeyAction, GenericType, MigrationPlan, Provider, SqlzError,
+    Column, ConstraintType, GenericType, MigrationPlan, Provider, SqlzError,
     SqlzResult, SqlzRow, SqlzValue, Table,
 };
 use postgres::{Client, NoTls};
@@ -133,29 +133,8 @@ impl Provider<postgres::Row> for PostgresqlProvider {
         for (i, column) in row.columns().iter().enumerate() {
             columns.push(column.name().to_string());
 
-            // Map Postgres types to our Generic SqlzValue
-            // Note: In a real app, you'd match on column.type()
-            let val = match column.type_().name() {
-                "bool" => row.get::<_, Option<bool>>(i).map(SqlzValue::Bool),
-                "int2" => row.get::<_, Option<i16>>(i).map(SqlzValue::SmallInt),
-                "int4" => row.get::<_, Option<i32>>(i).map(SqlzValue::Integer),
-                "int8" => row.get::<_, Option<i64>>(i).map(SqlzValue::BigInt),
-                "float4" => row.get::<_, Option<f32>>(i).map(SqlzValue::Float),
-                "float8" => row.get::<_, Option<f64>>(i).map(SqlzValue::Double),
-                "text" | "varchar" | "bpchar" | "name" => {
-                    row.get::<_, Option<String>>(i).map(SqlzValue::Text)
-                }
-                "numeric" => row
-                    .get::<_, Option<String>>(i)
-                    .map(|d| SqlzValue::Decimal(d.to_string())),
-                _ => Some(SqlzValue::Text(format!(
-                    "{:?}",
-                    row.get::<_, Option<String>>(i)
-                ))),
-            }
-            .unwrap_or(SqlzValue::Null);
-
-            values.push(val);
+            let val = helper::to_sqlz_value(column.type_().name(), i, row);
+            values.push(val.unwrap_or(SqlzValue::Null));
         }
 
         SqlzRow { columns, values }

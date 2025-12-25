@@ -44,6 +44,8 @@ pub enum SqlzValue {
     Float(f32),
     Double(f64),
     Decimal(String), // Store as string to preserve precision across DBs
+    Char(String),
+    VarChar(String),
     Text(String),
     Bytes(Vec<u8>),
     Date(chrono::NaiveDate),      // ISO 8601

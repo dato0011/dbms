@@ -6,6 +6,7 @@ pub const NATIVE_TYPE_FLOAT4: &str = "float4";
 pub const NATIVE_TYPE_FLOAT8: &str = "float8";
 pub const NATIVE_TYPE_NUMERIC: &str = "numeric";
 pub const NATIVE_TYPE_DECIMAL: &str = "decimal";
+pub const NATIVE_TYPE_CHAR: &str = "char";
 pub const NATIVE_TYPE_VARCHAR: &str = "varchar";
 pub const NATIVE_TYPE_BPCHAR: &str = "bpchar";
 pub const NATIVE_TYPE_TEXT: &str = "text";
