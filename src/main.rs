@@ -1,4 +1,4 @@
-use crate::sqlz::{ContinueFrom, MigrationPlan, RowReadOptions, SqlzValue};
+use crate::sqlz::{ContinueFrom, RowReadOptions, SqlzValue};
 use providers::postgresql::PostgresqlProvider;
 use sqlz::Provider;
 

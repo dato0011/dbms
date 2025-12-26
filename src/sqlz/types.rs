@@ -1,5 +1,3 @@
-use std::fmt;
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GenericType {
     // Fixed-size integer types (hardcoded byte sizes, no parameters)
@@ -58,26 +56,41 @@ pub enum ForeignKeyAction {
     Cascade,
 }
 
-impl fmt::Display for SqlzValue {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl postgres::types::ToSql for SqlzValue {
+    fn to_sql(
+        &self,
+        ty: &postgres::types::Type,
+        out: &mut bytes::BytesMut,
+    ) -> Result<postgres::types::IsNull, Box<dyn std::error::Error + Sync + Send>> {
         match self {
-            SqlzValue::Null => write!(f, "NULL"),
-            SqlzValue::Bool(b) => write!(f, "{}", b),
-            SqlzValue::TinyInt(v) => write!(f, "{}", v),
-            SqlzValue::SmallInt(v) => write!(f, "{}", v),
-            SqlzValue::Integer(v) => write!(f, "{}", v),
-            SqlzValue::BigInt(v) => write!(f, "{}", v),
-            SqlzValue::Float(v) => write!(f, "{}", v),
-            SqlzValue::Double(v) => write!(f, "{}", v),
-            SqlzValue::Decimal(v) => write!(f, "{}", v),
-            SqlzValue::Char(v) | SqlzValue::VarChar(v) | SqlzValue::Text(v) => {
-                write!(f, "'{}'", v.replace("'", "''")) // Basic SQL escaping
-            }
-            SqlzValue::Date(v) => write!(f, "'{}'", v),
-            SqlzValue::Timestamp(v) => write!(f, "'{}'", v),
-            SqlzValue::Bytes(v) | SqlzValue::Blob(v) => {
-                write!(f, "X'{:x?}'", v) // Simplified hex representation
+            SqlzValue::Null => Ok(postgres::types::IsNull::Yes),
+            SqlzValue::Bool(v) => v.to_sql(ty, out),
+            SqlzValue::TinyInt(v) => (*v as i16).to_sql(ty, out), // Postgres doesn't have a 1-byte int usually, maps to SmallInt
+            SqlzValue::SmallInt(v) => v.to_sql(ty, out),
+            SqlzValue::Integer(v) => v.to_sql(ty, out),
+            SqlzValue::BigInt(v) => v.to_sql(ty, out),
+            SqlzValue::Float(v) => v.to_sql(ty, out),
+            SqlzValue::Double(v) => v.to_sql(ty, out),
+            SqlzValue::Text(v) | SqlzValue::VarChar(v) | SqlzValue::Char(v) => v.to_sql(ty, out),
+            SqlzValue::Bytes(v) | SqlzValue::Blob(v) => v.to_sql(ty, out),
+            SqlzValue::Date(v) => v.to_sql(ty, out),
+            SqlzValue::Timestamp(v) => v.to_sql(ty, out),
+            SqlzValue::Decimal(v) => {
+                let d: rust_decimal::Decimal = v.parse().map_err(|e| Box::new(e))?;
+                d.to_sql(ty, out)
             }
         }
+    }
+
+    fn accepts(_: &postgres::types::Type) -> bool {
+        true // For simplicity in a generic provider
+    }
+
+    fn to_sql_checked(
+        &self,
+        ty: &postgres::types::Type,
+        out: &mut bytes::BytesMut,
+    ) -> Result<postgres::types::IsNull, Box<dyn std::error::Error + Sync + Send>> {
+        self.to_sql(ty, out)
     }
 }

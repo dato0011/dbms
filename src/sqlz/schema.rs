@@ -1,6 +1,7 @@
 use std::rc::Rc;
 use crate::sqlz::{ForeignKeyAction, GenericType};
 
+#[derive(Debug, Clone)]
 pub struct PrimaryKeyConstraint {
     pub constraint_name: String,
     pub columns: Vec<Rc<Column>>,
@@ -22,6 +23,7 @@ pub enum ConstraintType {
     },
 }
 
+#[derive(Debug, Clone)]
 pub struct Column {
     pub name: String,
     pub col_type: GenericType,
@@ -40,9 +42,9 @@ pub struct Table {
 }
 
 impl Table {
-    pub fn get_pk(&self) -> Option<&PrimaryKeyConstraint> {
+    pub fn get_pk(&self) -> Option<PrimaryKeyConstraint> {
         self.constraints.iter().find_map(|c| match c {
-            ConstraintType::PrimaryKey(pk) => Some(pk),
+            ConstraintType::PrimaryKey(pk) => Some(pk.clone()),
             _ => None,
         })
     }

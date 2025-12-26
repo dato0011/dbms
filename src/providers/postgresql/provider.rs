@@ -1,9 +1,7 @@
 use super::constants;
 use super::{helper, queries};
-use crate::sqlz::{
-    BatchQueryResult, Column, ConstraintType, GenericType, MigrationPlan, PrimaryKeyConstraint,
-    Provider, RowReadOptions, SqlzError, SqlzResult, Table,
-};
+use crate::sqlz::{BatchQueryResult, Column, ConstraintType, ContinueFrom, GenericType, MigrationPlan, PrimaryKeyConstraint, Provider, RowReadOptions, SqlzError, SqlzResult, SqlzRow, Table};
+use postgres::types::ToSql;
 use postgres::{Client, NoTls};
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -126,43 +124,77 @@ impl Provider<postgres::Row> for PostgresqlProvider {
         todo!()
     }
 
-    fn read_rows(&self, table: &Table, options: RowReadOptions) -> Box<BatchQueryResult> {
+    fn read_rows(
+        &mut self,
+        table: &Table,
+        options: RowReadOptions,
+    ) -> SqlzResult<Box<BatchQueryResult>> {
         let mut sql = format!("SELECT * FROM {} ", table.name);
 
         let mut values = String::from("(");
         let mut keys = String::from("(");
+        let mut key_values = Vec::new();
 
-        if let Some(pk) = &table.get_pk() {
-            let total_columns = pk.columns.len();
-
-            pk.columns.iter().enumerate().for_each(|(index, column)| {
-                keys.push_str(&column.name);
-                if let Some(cf) = &options.continue_from {
-                    values.push_str(&format!("{}", cf.values[index]));
-                }
-
-                if index < total_columns - 1 {
-                    keys.push_str(", ");
-                    if options.continue_from.is_some() {
-                        values.push_str(", ");
-                    }
-                }
-            });
-        } else {
+        let pk = table.get_pk();
+        if pk.is_none() {
             panic!("Table {} does not have a primary key", table.name);
         }
+        let pk = pk.unwrap();
+
+        let total_columns = pk.columns.len();
+
+        pk.columns.iter().enumerate().for_each(|(index, column)| {
+            keys.push_str(&column.name);
+            if let Some(cf) = &options.continue_from {
+                values.push_str(&format!("${}", index + 1));
+                key_values.push(cf.where_params[index].clone());
+            }
+
+            if index < total_columns - 1 {
+                keys.push_str(", ");
+                if options.continue_from.is_some() {
+                    values.push_str(", ");
+                }
+            }
+        });
 
         keys.push(')');
         values.push(')');
 
         if options.continue_from.is_some() {
-            sql.push_str(&format!("WHERE {keys} > {values} "));
+            sql.push_str(&format!(" WHERE {keys} > {values} "));
         }
 
         sql.push_str(&format!("ORDER BY {keys} ASC"));
         sql.push_str(&format!(" LIMIT {}", options.batch_size));
 
-        unimplemented!();
+        let params: Vec<&(dyn ToSql + Sync)> = key_values
+            .iter()
+            .map(|v| v as &(dyn ToSql + Sync))
+            .collect();
+
+        let rows = self
+            .client
+            .query(&sql, &params)
+            .map_err(|e| SqlzError::DatabaseError(Box::new(e)))?;
+
+        let rows: Vec<SqlzRow> = rows.iter().map(|row| helper::convert_row(row)).collect();
+        let mut where_params = Vec::new();
+        let mut result = Box::new(BatchQueryResult { rows, continue_from: None });
+
+        if result.rows.len() == options.batch_size {
+            let last_row = &result.rows.last().unwrap();
+            pk.columns.iter().for_each(|column| {
+               where_params.push(last_row.get(column.name.as_str()).unwrap().clone());
+            });
+
+            result.continue_from = Some(ContinueFrom {
+                primary_key: pk,
+                where_params,
+            });
+        }
+
+        Ok(result)
     }
 }
 

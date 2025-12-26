@@ -7,8 +7,8 @@ pub trait Provider<T> {
     fn migrate_data(&mut self, plan: &MigrationPlan) -> SqlzResult<()>;
     fn create_constraints(&mut self, plan: &MigrationPlan) -> SqlzResult<()>;
     fn read_rows(
-        &self,
+        &mut self,
         table: &Table,
         options: RowReadOptions,
-    ) -> Box<BatchQueryResult>;
+    ) -> SqlzResult<Box<BatchQueryResult>>;
 }

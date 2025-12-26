@@ -5,19 +5,19 @@ pub struct SqlzRow {
     pub values: Vec<SqlzValue>,
 }
 
-pub struct RowReadOptions<'a> {
+pub struct RowReadOptions {
     pub batch_size: usize,
-    pub continue_from: Option<ContinueFrom<'a>>,
+    pub continue_from: Option<ContinueFrom>,
 }
 
-pub struct BatchQueryResult<'a> {
-    rows: Vec<SqlzRow>,
-    continue_from: Option<ContinueFrom<'a>>,
+pub struct BatchQueryResult {
+    pub rows: Vec<SqlzRow>,
+    pub continue_from: Option<ContinueFrom>
 }
 
-pub struct ContinueFrom<'a> {
-    pub primary_key: &'a PrimaryKeyConstraint,
-    pub values: Vec<SqlzValue>,
+pub struct ContinueFrom {
+    pub primary_key: PrimaryKeyConstraint,
+    pub where_params: Vec<SqlzValue>,
 }
 
 impl SqlzRow {
@@ -29,7 +29,7 @@ impl SqlzRow {
     }
 }
 
-impl<'a> Default for RowReadOptions<'a> {
+impl Default for RowReadOptions {
     fn default() -> Self {
         Self {
             batch_size: 100,
@@ -38,11 +38,11 @@ impl<'a> Default for RowReadOptions<'a> {
     }
 }
 
-impl<'a> ContinueFrom<'a> {
-    pub fn new(pk: &'a PrimaryKeyConstraint, values: Vec<SqlzValue>) -> Self {
+impl ContinueFrom{
+    pub fn new(pk: PrimaryKeyConstraint, values: Vec<SqlzValue>) -> Self {
         Self {
             primary_key: pk,
-            values,
+            where_params: values,
         }
     }
 }
