@@ -1,8 +1,8 @@
 use super::constants;
 use super::{helper, queries};
 use crate::sqlz::{
-    Column, ConstraintType, GenericType, MigrationPlan, Provider, SqlzError,
-    SqlzResult, SqlzRow, SqlzValue, Table,
+    BatchQueryResult, Column, ConstraintType, GenericType, MigrationPlan, PrimaryKeyConstraint,
+    Provider, RowReadOptions, SqlzError, SqlzResult, Table,
 };
 use postgres::{Client, NoTls};
 use std::collections::HashMap;
@@ -126,18 +126,43 @@ impl Provider<postgres::Row> for PostgresqlProvider {
         todo!()
     }
 
-    fn convert_row(&self, row: &postgres::Row) -> SqlzRow {
-        let mut columns = Vec::new();
-        let mut values = Vec::new();
+    fn read_rows(&self, table: &Table, options: RowReadOptions) -> Box<BatchQueryResult> {
+        let mut sql = format!("SELECT * FROM {} ", table.name);
 
-        for (i, column) in row.columns().iter().enumerate() {
-            columns.push(column.name().to_string());
+        let mut values = String::from("(");
+        let mut keys = String::from("(");
 
-            let val = helper::to_sqlz_value(column.type_().name(), i, row);
-            values.push(val.unwrap_or(SqlzValue::Null));
+        if let Some(pk) = &table.get_pk() {
+            let total_columns = pk.columns.len();
+
+            pk.columns.iter().enumerate().for_each(|(index, column)| {
+                keys.push_str(&column.name);
+                if let Some(cf) = &options.continue_from {
+                    values.push_str(&format!("{}", cf.values[index]));
+                }
+
+                if index < total_columns - 1 {
+                    keys.push_str(", ");
+                    if options.continue_from.is_some() {
+                        values.push_str(", ");
+                    }
+                }
+            });
+        } else {
+            panic!("Table {} does not have a primary key", table.name);
         }
 
-        SqlzRow { columns, values }
+        keys.push(')');
+        values.push(')');
+
+        if options.continue_from.is_some() {
+            sql.push_str(&format!("WHERE {keys} > {values} "));
+        }
+
+        sql.push_str(&format!("ORDER BY {keys} ASC"));
+        sql.push_str(&format!(" LIMIT {}", options.batch_size));
+
+        unimplemented!();
     }
 }
 
@@ -207,17 +232,21 @@ fn fill_constraints(client: &mut Client, table: &mut Table) -> SqlzResult<()> {
             match constraint_type.as_str() {
                 constants::CONSTRAINT_PK => {
                     // Check if we already have this PK (for multi-column PKs)
-                    if let Some(ConstraintType::PrimaryKey { columns, .. }) = table
+                    if let Some(ConstraintType::PrimaryKey(PrimaryKeyConstraint {
+                        columns, ..
+                    })) = table
                         .constraints
                         .iter_mut()
                         .find(|c| matches!(c, ConstraintType::PrimaryKey { .. }))
                     {
                         columns.push(col);
                     } else {
-                        table.constraints.push(ConstraintType::PrimaryKey {
-                            constraint_name,
-                            columns: vec![col],
-                        });
+                        table
+                            .constraints
+                            .push(ConstraintType::PrimaryKey(PrimaryKeyConstraint {
+                                constraint_name,
+                                columns: vec![col],
+                            }));
                     }
                 }
                 constants::CONSTRAINT_UNIQUE => {

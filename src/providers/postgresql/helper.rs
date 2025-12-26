@@ -1,5 +1,5 @@
-use crate::providers::postgresql::constants;
-use crate::sqlz::{ForeignKeyAction, GenericType, SqlzValue};
+use crate::providers::postgresql::{constants, helper};
+use crate::sqlz::{ForeignKeyAction, GenericType, SqlzRow, SqlzValue};
 
 pub fn map_fk_action(action: &str) -> ForeignKeyAction {
     match action {
@@ -122,4 +122,18 @@ pub fn to_sqlz_value(col_type: &str, index: usize, row: &postgres::Row) -> Optio
 
         _ => row.get::<_, Option<String>>(index).map(SqlzValue::Text),
     }
+}
+
+fn convert_row(row: &postgres::Row) -> SqlzRow {
+    let mut columns = Vec::new();
+    let mut values = Vec::new();
+
+    for (i, column) in row.columns().iter().enumerate() {
+        columns.push(column.name().to_string());
+
+        let val = helper::to_sqlz_value(column.type_().name(), i, row);
+        values.push(val.unwrap_or(SqlzValue::Null));
+    }
+
+    SqlzRow { columns, values }
 }
