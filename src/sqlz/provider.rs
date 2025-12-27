@@ -1,4 +1,4 @@
-use crate::sqlz::{BatchQueryResult, MigrationPlan, RowReadOptions, SqlzResult, Table};
+use crate::sqlz::{BatchQueryResult, MigrationPlan, RowReadOptions, SqlzResult, SqlzRow, Table};
 
 pub trait Provider {
     fn get_tables(&mut self) -> SqlzResult<Vec<Table>>;
@@ -10,5 +10,6 @@ pub trait Provider {
         &mut self,
         table: &Table,
         options: RowReadOptions,
-    ) -> SqlzResult<Box<BatchQueryResult>>;
+    ) -> SqlzResult<Box<BatchQueryResult>>;    
+    fn write_rows(&mut self, table: &Table, rows: Vec<SqlzRow>) -> SqlzResult<()>;
 }

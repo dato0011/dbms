@@ -98,4 +98,23 @@ impl Provider for PostgresqlProvider {
 
         Ok(result)
     }
+
+    fn write_rows(&mut self, table: &Table, rows: Vec<SqlzRow>) -> SqlzResult<()> {
+        if rows.is_empty() {
+            return Ok(());
+        }
+
+        let (sql, params) = queries::build_write_rows_sql(table, &rows);
+
+        let params: Vec<&(dyn ToSql + Sync)> = params
+            .iter()
+            .map(|v| v as &(dyn ToSql + Sync))
+            .collect();
+
+        self.client
+            .execute(&sql, &params)
+            .map_err(|e| SqlzError::DatabaseError(Box::new(e)))?;
+
+        Ok(())
+    }
 }

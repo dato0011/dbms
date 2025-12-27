@@ -106,6 +106,9 @@ pub fn to_sqlz_value(col_type: &str, index: usize, row: &postgres::Row) -> Optio
         }
         constants::NATIVE_TYPE_TEXT => row.get::<_, Option<String>>(index).map(SqlzValue::Text),
 
+        // Blobs
+        constants::NATIVE_TYPE_BYTEA => row.get::<_, Option<Vec<u8>>>(index).map(SqlzValue::Blob),
+
         // Booleans
         constants::NATIVE_TYPE_BOOL => row.get::<_, Option<bool>>(index).map(SqlzValue::Bool),
 
@@ -117,8 +120,6 @@ pub fn to_sqlz_value(col_type: &str, index: usize, row: &postgres::Row) -> Optio
             .get::<_, Option<chrono::NaiveDateTime>>(index)
             .map(SqlzValue::Timestamp),
 
-        // Blobs
-        constants::NATIVE_TYPE_BYTEA => row.get::<_, Option<Vec<u8>>>(index).map(SqlzValue::Blob),
 
         _ => row.get::<_, Option<String>>(index).map(SqlzValue::Text),
     }

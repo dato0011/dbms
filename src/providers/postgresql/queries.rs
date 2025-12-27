@@ -1,6 +1,4 @@
-use crate::sqlz::{
-    GenericType, MigrationPlan, RowReadOptions, SqlzValue, Table,
-};
+use crate::sqlz::{GenericType, MigrationPlan, RowReadOptions, SqlzRow, SqlzValue, Table};
 
 pub const SELECT_TABLES: &str = "\
     SELECT table_name
@@ -93,10 +91,7 @@ pub fn build_create_table_sql(plan: &MigrationPlan) -> String {
     sql
 }
 
-pub fn build_read_rows_sql(
-    table: &Table,
-    options: &RowReadOptions,
-) -> (String, Vec<SqlzValue>) {
+pub fn build_read_rows_sql(table: &Table, options: &RowReadOptions) -> (String, Vec<SqlzValue>) {
     let mut sql = format!("SELECT * FROM {} ", table.name);
 
     let mut values = String::from("(");
@@ -137,4 +132,36 @@ pub fn build_read_rows_sql(
     sql.push_str(&format!(" LIMIT {}", options.batch_size));
 
     (sql, key_values)
+}
+
+pub fn build_write_rows_sql(table: &Table, rows: &Vec<SqlzRow>) -> (String, Vec<SqlzValue>) {
+    if rows.is_empty() {
+        return (String::new(), Vec::new());
+    }
+
+    let mut param_counter = 0;
+    let mut params: Vec<SqlzValue> = Vec::new();
+    let column_names: Vec<String> = table.columns.iter().map(|c| c.name.clone()).collect();
+    let columns_str = column_names.join(", ");
+
+    let mut values_placeholders = Vec::new();
+
+    for row in rows {
+        let mut row_placeholders = Vec::new();
+        for col_name in &column_names {
+            param_counter += 1;
+            row_placeholders.push(format!("${}", param_counter));
+            params.push(row.get(col_name).unwrap().clone());
+        }
+        values_placeholders.push(format!("({})", row_placeholders.join(", ")));
+    }
+
+    let sql = format!(
+        "INSERT INTO {} ({}) VALUES {}",
+        table.name,
+        columns_str,
+        values_placeholders.join(", ")
+    );
+
+    (sql, params)
 }
