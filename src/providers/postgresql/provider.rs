@@ -8,7 +8,7 @@ pub struct PostgresqlProvider {
 }
 
 impl PostgresqlProvider {
-    pub fn new() -> SqlzResult<impl Provider<postgres::Row>> {
+    pub fn new() -> SqlzResult<impl Provider> {
         Ok(PostgresqlProvider {
             client: Client::connect(
                 "host=localhost user=postgres password=111 dbname=dvdrental",
@@ -19,7 +19,7 @@ impl PostgresqlProvider {
     }
 }
 
-impl Provider<postgres::Row> for PostgresqlProvider {
+impl Provider for PostgresqlProvider {
     fn get_tables(&mut self) -> SqlzResult<Vec<Table>> {
         introspection::get_all_tables(&mut self.client)
     }
