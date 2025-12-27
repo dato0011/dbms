@@ -10,6 +10,24 @@ pub struct RowReadOptions {
     pub continue_from: Option<ContinueFrom>,
 }
 
+impl RowReadOptions {
+    pub fn validate(&self) -> crate::sqlz::SqlzResult<()> {
+        if self.batch_size == 0 {
+            return Err(crate::sqlz::SqlzError::ValidationError(
+                "batch_size must be greater than 0".to_string(),
+            ));
+        }
+        if let Some(ContinueFrom { primary_key, where_params }) = &self.continue_from {
+            if where_params.len() != primary_key.columns.len() {
+                return Err(crate::sqlz::SqlzError::ValidationError(
+                    "where_params length must match primary key columns length".to_string(),
+                ));
+            }
+        }
+        Ok(())
+    }
+}
+
 pub struct BatchQueryResult {
     pub rows: Vec<SqlzRow>,
     pub continue_from: Option<ContinueFrom>

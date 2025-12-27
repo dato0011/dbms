@@ -1,7 +1,6 @@
 use crate::sqlz::{
-    GenericType, MigrationPlan, PrimaryKeyConstraint, RowReadOptions, SqlzValue, Table,
+    GenericType, MigrationPlan, RowReadOptions, SqlzValue, Table,
 };
-use postgres::types::ToSql;
 
 pub const SELECT_TABLES: &str = "\
     SELECT table_name
@@ -96,7 +95,6 @@ pub fn build_create_table_sql(plan: &MigrationPlan) -> String {
 
 pub fn build_read_rows_sql(
     table: &Table,
-    pk: &PrimaryKeyConstraint,
     options: &RowReadOptions,
 ) -> (String, Vec<SqlzValue>) {
     let mut sql = format!("SELECT * FROM {} ", table.name);

@@ -65,8 +65,10 @@ impl Provider<postgres::Row> for PostgresqlProvider {
         table: &Table,
         options: RowReadOptions,
     ) -> SqlzResult<Box<BatchQueryResult>> {
+        options.validate()?;
+        
         let pk = table.get_pk().unwrap();
-        let (sql, key_values) = queries::build_read_rows_sql(table, &pk, &options);
+        let (sql, key_values) = queries::build_read_rows_sql(table, &options);
 
         let params: Vec<&(dyn ToSql + Sync)> = key_values
             .iter()

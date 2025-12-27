@@ -17,7 +17,7 @@ fn main() {
     //     test.constraints.primary_key.clone(),
     //     vec![1, 2, 3],
     // ));
-    provider.read_rows(test, options);
+    provider.read_rows(test, options).unwrap();
     // let mut plan = MigrationPlan::new(film);
     // film.columns.iter().for_each(|c| {
     //     plan.target_column_type_map.insert(
