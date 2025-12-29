@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use crate::sqlz::{GenericType, RowReadOptions, SqlzRow, SqlzValue, Table};
+use std::collections::HashMap;
 
 pub const SELECT_TABLES: &str = "\
     SELECT table_name
@@ -98,6 +98,7 @@ pub fn build_create_table_sql(
 pub fn build_read_rows_sql(table: &Table, options: &RowReadOptions) -> (String, Vec<SqlzValue>) {
     let mut column_parts = Vec::new();
     for col in &table.columns {
+        // Build columns list for SELECT
         match col.col_type {
             GenericType::UserDefined(_) => {
                 // Force custom types to text so row.get::<String> works

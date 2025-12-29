@@ -5,7 +5,8 @@ edition = "2024"
 
 [dependencies]
 chrono = "0.4.42"
-postgres = {version="0.19.12", features = ["with-chrono-0_4", "with-serde_json-1"]}
+postgres = {version="0.19.12", features = ["with-chrono-0_4", "with-serde_json-1", "with-uuid-1"]}
 rust_decimal = { version = "1.39.0", features = ["db-postgres"] }
 bytes = "1.11.0"
 serde_json = "1.0.147"
+uuid = { version = "1.19.0", features = ["v4"] }

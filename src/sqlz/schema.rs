@@ -1,5 +1,5 @@
-use std::rc::Rc;
 use crate::sqlz::{ForeignKeyAction, GenericType};
+use std::rc::Rc;
 
 #[derive(Debug, Clone)]
 pub struct PrimaryKeyConstraint {

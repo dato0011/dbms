@@ -6,8 +6,12 @@ pub mod providers;
 pub mod sqlz;
 
 fn main() {
-    let mut provider = PostgresqlProvider::new("host=localhost user=postgres password=111 dbname=dvdrental").unwrap();
-    let mut target_provider = PostgresqlProvider::new("host=localhost user=postgres password=111 dbname=target_test").unwrap();
+    let mut provider =
+        PostgresqlProvider::new("host=localhost user=postgres password=111 dbname=dvdrental")
+            .unwrap();
+    let mut target_provider =
+        PostgresqlProvider::new("host=localhost user=postgres password=111 dbname=target_test")
+            .unwrap();
     let tables = provider.get_tables().unwrap();
     let film = tables.iter().find(|t| t.name == "film").unwrap();
     let test = tables.iter().find(|t| t.name == "test").unwrap();

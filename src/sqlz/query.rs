@@ -17,7 +17,11 @@ impl RowReadOptions {
                 "batch_size must be greater than 0".to_string(),
             ));
         }
-        if let Some(ContinueFrom { primary_key, where_params }) = &self.continue_from {
+        if let Some(ContinueFrom {
+            primary_key,
+            where_params,
+        }) = &self.continue_from
+        {
             if where_params.len() != primary_key.columns.len() {
                 return Err(crate::sqlz::SqlzError::ValidationError(
                     "where_params length must match primary key columns length".to_string(),
@@ -30,7 +34,7 @@ impl RowReadOptions {
 
 pub struct BatchQueryResult {
     pub rows: Vec<SqlzRow>,
-    pub continue_from: Option<ContinueFrom>
+    pub continue_from: Option<ContinueFrom>,
 }
 
 pub struct ContinueFrom {
@@ -56,7 +60,7 @@ impl Default for RowReadOptions {
     }
 }
 
-impl ContinueFrom{
+impl ContinueFrom {
     pub fn new(pk: PrimaryKeyConstraint, values: Vec<SqlzValue>) -> Self {
         Self {
             primary_key: pk,

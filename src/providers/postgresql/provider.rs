@@ -12,13 +12,17 @@ pub struct PostgresqlProvider {
 
 impl PostgresqlProvider {
     pub fn new(conn_string: &str) -> SqlzResult<impl Provider> {
-        Ok(PostgresqlProvider {
-            client: Client::connect(
-                conn_string,
-                NoTls,
-            )
-            .map_err(|e| SqlzError::ConnectionError(e.to_string()))?,
-        })
+        let mut client = Client::connect(conn_string, NoTls)
+            .map_err(|e| SqlzError::ConnectionError(e.to_string()))?;
+
+        // Ensure the session is always UTC to avoid silent timezone shifts
+        // during data extraction and insertion.
+        // TODO: Provide as optional argument to the provider constructor
+        client
+            .execute("SET TIME ZONE 'UTC'", &[])
+            .map_err(|e| SqlzError::DatabaseError(Box::new(e)))?;
+
+        Ok(Self { client })
     }
 }
 

@@ -1,7 +1,7 @@
-mod provider;
 mod constants;
-mod queries;
 mod helper;
 mod introspection;
+mod provider;
+mod queries;
 
 pub use provider::PostgresqlProvider;
