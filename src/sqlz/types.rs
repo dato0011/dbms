@@ -18,6 +18,8 @@ pub enum GenericType {
     // Binary types (e.g., images)
     Blob(usize),
     Uuid,
+    Bit(usize),
+    VarBit(usize),
 
     // Other common types (expand as needed)
     Boolean,
@@ -51,6 +53,8 @@ pub enum SqlzValue {
     TimestampTz(chrono::DateTime<chrono::Utc>),
     Time(chrono::NaiveTime),
     Blob(Vec<u8>),
+    Bit(bit_vec::BitVec),
+    VarBit(bit_vec::BitVec),
     Uuid(uuid::Uuid),
 }
 
@@ -81,6 +85,7 @@ impl postgres::types::ToSql for SqlzValue {
             SqlzValue::Json(v) => v.to_sql(ty, out),
             SqlzValue::Blob(v) => v.to_sql(ty, out),
             SqlzValue::Uuid(v) => v.to_sql(ty, out),
+            SqlzValue::Bit(v) | SqlzValue::VarBit(v) => v.to_sql(ty, out),
             SqlzValue::Date(v) => v.to_sql(ty, out),
             SqlzValue::Timestamp(v) => v.to_sql(ty, out),
             SqlzValue::TimestampTz(v) => v.to_sql(ty, out),
