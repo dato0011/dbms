@@ -1,4 +1,5 @@
-use crate::sqlz::{GenericType, MigrationPlan, RowReadOptions, SqlzRow, SqlzValue, Table};
+use std::collections::HashMap;
+use crate::sqlz::{GenericType, RowReadOptions, SqlzRow, SqlzValue, Table};
 
 pub const SELECT_TABLES: &str = "\
     SELECT table_name
@@ -59,12 +60,15 @@ pub const SELECT_TABLES_EXISTS: &str = "\
     SELECT table_name FROM information_schema.tables \
     WHERE table_schema = 'public' AND table_name = ANY($1);";
 
-pub fn build_create_table_sql(plan: &MigrationPlan) -> String {
-    let mut sql = format!("CREATE TABLE public.{} (\n", plan.table.name);
+pub fn build_create_table_sql(
+    table: &Table,
+    target_column_type_map: HashMap<String, String>,
+) -> String {
+    let mut sql = format!("CREATE TABLE public.{} (\n", table.name);
     let mut column_defs = Vec::new();
 
-    for col in &plan.table.columns {
-        let type_str = plan.target_column_type_map.get(&col.name).unwrap();
+    for col in &table.columns {
+        let type_str = target_column_type_map.get(&col.name).unwrap();
         let mut def = format!("    {} {}", col.name, type_str);
 
         if let GenericType::Decimal { .. } = col.col_type {
@@ -92,7 +96,20 @@ pub fn build_create_table_sql(plan: &MigrationPlan) -> String {
 }
 
 pub fn build_read_rows_sql(table: &Table, options: &RowReadOptions) -> (String, Vec<SqlzValue>) {
-    let mut sql = format!("SELECT * FROM {} ", table.name);
+    let mut column_parts = Vec::new();
+    for col in &table.columns {
+        match col.col_type {
+            GenericType::UserDefined(_) => {
+                // Force custom types to text so row.get::<String> works
+                column_parts.push(format!("\"{}\"::TEXT as \"{}\"", col.name, col.name));
+            }
+            _ => {
+                column_parts.push(format!("\"{}\"", col.name));
+            }
+        }
+    }
+
+    let mut sql = format!("SELECT {} FROM {} ", column_parts.join(", "), table.name);
 
     let mut values = String::from("(");
     let mut keys = String::from("(");

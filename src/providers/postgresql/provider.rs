@@ -1,17 +1,20 @@
-use super::{helper, queries, introspection};
-use crate::sqlz::{BatchQueryResult, ContinueFrom, MigrationPlan, Provider, RowReadOptions, SqlzError, SqlzResult, SqlzRow, Table};
+use super::{helper, introspection, queries};
+use crate::sqlz::{
+    BatchQueryResult, ContinueFrom, Provider, RowReadOptions, SqlzError, SqlzResult, SqlzRow, Table,
+};
 use postgres::types::ToSql;
 use postgres::{Client, NoTls};
+use std::collections::HashMap;
 
 pub struct PostgresqlProvider {
     client: Client,
 }
 
 impl PostgresqlProvider {
-    pub fn new() -> SqlzResult<impl Provider> {
+    pub fn new(conn_string: &str) -> SqlzResult<impl Provider> {
         Ok(PostgresqlProvider {
             client: Client::connect(
-                "host=localhost user=postgres password=111 dbname=dvdrental",
+                conn_string,
                 NoTls,
             )
             .map_err(|e| SqlzError::ConnectionError(e.to_string()))?,
@@ -35,38 +38,32 @@ impl Provider for PostgresqlProvider {
         Ok(rows.iter().map(|row| row.get("table_name")).collect())
     }
 
-    fn generate_schema(&mut self, plan: &MigrationPlan) -> SqlzResult<()> {
-        if !plan.is_valid() {
-            return Err(SqlzError::MappingError(format!(
-                "Invalid migration plan for table '{}'",
-                plan.table.name
-            )));
-        }
+    fn generate_schema(&mut self, table: &Table) -> SqlzResult<()> {
+        let mut column_map = HashMap::new();
+        table.columns.iter().for_each(|c| {
+            column_map.insert(c.name.clone(), helper::map_sqlz_to_native_type(&c.col_type));
+        });
 
-        let sql = queries::build_create_table_sql(plan);
+        let sql = queries::build_create_table_sql(table, column_map);
 
         self.client
-            .batch_execute(&sql)
+            .execute(&sql, &[])
             .map_err(|e| SqlzError::DatabaseError(Box::new(e)))?;
 
         Ok(())
     }
 
-    fn migrate_data(&mut self, _plan: &MigrationPlan) -> SqlzResult<()> {
-        todo!()
-    }
-
-    fn create_constraints(&mut self, _plan: &MigrationPlan) -> SqlzResult<()> {
+    fn create_constraints(&mut self) -> SqlzResult<()> {
         todo!()
     }
 
     fn read_rows(
         &mut self,
         table: &Table,
-        options: RowReadOptions,
+        options: &RowReadOptions,
     ) -> SqlzResult<Box<BatchQueryResult>> {
         options.validate()?;
-        
+
         let pk = table.get_pk().unwrap();
         let (sql, key_values) = queries::build_read_rows_sql(table, &options);
 
@@ -82,12 +79,15 @@ impl Provider for PostgresqlProvider {
 
         let rows: Vec<SqlzRow> = rows.iter().map(|row| helper::convert_row(row)).collect();
         let mut where_params = Vec::new();
-        let mut result = Box::new(BatchQueryResult { rows, continue_from: None });
+        let mut result = Box::new(BatchQueryResult {
+            rows,
+            continue_from: None,
+        });
 
         if result.rows.len() == options.batch_size {
             let last_row = result.rows.last().unwrap();
             pk.columns.iter().for_each(|column| {
-               where_params.push(last_row.get(column.name.as_str()).unwrap().clone());
+                where_params.push(last_row.get(column.name.as_str()).unwrap().clone());
             });
 
             result.continue_from = Some(ContinueFrom {
@@ -106,10 +106,8 @@ impl Provider for PostgresqlProvider {
 
         let (sql, params) = queries::build_write_rows_sql(table, &rows);
 
-        let params: Vec<&(dyn ToSql + Sync)> = params
-            .iter()
-            .map(|v| v as &(dyn ToSql + Sync))
-            .collect();
+        let params: Vec<&(dyn ToSql + Sync)> =
+            params.iter().map(|v| v as &(dyn ToSql + Sync)).collect();
 
         self.client
             .execute(&sql, &params)
