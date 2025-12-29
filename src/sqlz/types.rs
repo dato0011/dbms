@@ -10,10 +10,10 @@ pub enum GenericType {
     Float,  // Fixed, e.g., 4 bytes single-precision
     Double, // Fixed, e.g., 8 bytes double-precision
 
-    // String types (parameterized by max length or unlimited)
-    VarChar(usize), // Arbitrary max length
-    Char(usize),    // Fixed length
-    Text,           // Unlimited/variable
+    VarChar(usize), 
+    Char(usize),    
+    Text,           
+    Json,
 
     // Binary types (e.g., images)
     Blob(usize),
@@ -43,6 +43,7 @@ pub enum SqlzValue {
     Char(String),
     VarChar(String),
     Text(String),
+    Json(String),
     Bytes(Vec<u8>),
     Date(chrono::NaiveDate),          // ISO 8601
     Timestamp(chrono::NaiveDateTime), // ISO 8601
@@ -74,6 +75,7 @@ impl postgres::types::ToSql for SqlzValue {
             SqlzValue::Float(v) => v.to_sql(ty, out),
             SqlzValue::Double(v) => v.to_sql(ty, out),
             SqlzValue::Text(v) | SqlzValue::VarChar(v) | SqlzValue::Char(v) => v.to_sql(ty, out),
+            SqlzValue::Json(v) => v.to_sql(ty, out),
             SqlzValue::Bytes(v) | SqlzValue::Blob(v) => v.to_sql(ty, out),
             SqlzValue::Date(v) => v.to_sql(ty, out),
             SqlzValue::Timestamp(v) => v.to_sql(ty, out),

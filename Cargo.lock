@@ -209,6 +209,7 @@ dependencies = [
  "chrono",
  "postgres",
  "rust_decimal",
+ "serde_json",
 ]
 
 [[package]]
@@ -570,6 +571,8 @@ dependencies = [
  "chrono",
  "fallible-iterator",
  "postgres-protocol",
+ "serde_core",
+ "serde_json",
 ]
 
 [[package]]

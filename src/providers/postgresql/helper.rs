@@ -38,6 +38,8 @@ pub fn map_native_type_to_sqlz(
             GenericType::VarChar(char_len.unwrap_or(0) as usize)
         }
         name if name == Type::TEXT.name() => GenericType::Text,
+        name if name == Type::JSON.name() => GenericType::Json,
+        name if name == Type::JSONB.name() => GenericType::Json,
         name if name == Type::BYTEA.name() => GenericType::Blob(0),
         name if name == Type::BOOL.name() => GenericType::Boolean,
         name if name == Type::DATE.name() => GenericType::Date,
@@ -59,12 +61,13 @@ pub fn map_sqlz_to_native_type(generic_type: &GenericType) -> String {
         GenericType::VarChar(_) => Type::VARCHAR.name().to_string(),
         GenericType::Char(_) => Type::BPCHAR.name().to_string(),
         GenericType::Text => Type::TEXT.name().to_string(),
+        GenericType::Json => Type::JSON.name().to_string(),
         GenericType::Blob(_) => Type::BYTEA.name().to_string(),
         GenericType::Boolean => Type::BOOL.name().to_string(),
         GenericType::Date => Type::DATE.name().to_string(),
         GenericType::Timestamp => Type::TIMESTAMP.name().to_string(),
         GenericType::TimestampTz => Type::TIMESTAMPTZ.name().to_string(),
-        GenericType::UserDefined(name) => "text".to_string(),
+        GenericType::UserDefined(_) => "text".to_string(),
     }
 }
 
@@ -84,6 +87,9 @@ pub fn to_sqlz_value(index: usize, row: &postgres::Row) -> Option<SqlzValue> {
         Type::CHAR | Type::BPCHAR => row.get::<_, Option<String>>(index).map(SqlzValue::Char),
         Type::VARCHAR => row.get::<_, Option<String>>(index).map(SqlzValue::VarChar),
         Type::TEXT => row.get::<_, Option<String>>(index).map(SqlzValue::Text),
+        Type::JSON | Type::JSONB => row
+            .get::<_, Option<serde_json::Value>>(index)
+            .map(|v| SqlzValue::Json(v.to_string())),
         Type::BYTEA => row.get::<_, Option<Vec<u8>>>(index).map(SqlzValue::Blob),
         Type::BOOL => row.get::<_, Option<bool>>(index).map(SqlzValue::Bool),
         Type::DATE => row
