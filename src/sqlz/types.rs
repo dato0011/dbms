@@ -22,6 +22,7 @@ pub enum GenericType {
     Boolean,
     Date,
     Timestamp,
+    TimestampTz,
 
     // Add more like Decimal(precision, scale) for numerics with arbitrary precision/scale
     Decimal { precision: usize, scale: usize },
@@ -45,6 +46,7 @@ pub enum SqlzValue {
     Bytes(Vec<u8>),
     Date(chrono::NaiveDate),          // ISO 8601
     Timestamp(chrono::NaiveDateTime), // ISO 8601
+    TimestampTz(chrono::DateTime<chrono::Utc>),
     Blob(Vec<u8>),
 }
 
@@ -75,6 +77,7 @@ impl postgres::types::ToSql for SqlzValue {
             SqlzValue::Bytes(v) | SqlzValue::Blob(v) => v.to_sql(ty, out),
             SqlzValue::Date(v) => v.to_sql(ty, out),
             SqlzValue::Timestamp(v) => v.to_sql(ty, out),
+            SqlzValue::TimestampTz(v) => v.to_sql(ty, out),
             SqlzValue::Decimal(v) => {
                 let d: rust_decimal::Decimal = v.parse().map_err(|e| Box::new(e))?;
                 d.to_sql(ty, out)

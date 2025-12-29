@@ -41,9 +41,8 @@ pub fn map_native_type_to_sqlz(
         name if name == Type::BYTEA.name() => GenericType::Blob(0),
         name if name == Type::BOOL.name() => GenericType::Boolean,
         name if name == Type::DATE.name() => GenericType::Date,
-        name if name == Type::TIMESTAMP.name() || name == Type::TIMESTAMPTZ.name() => {
-            GenericType::Timestamp
-        }
+        name if name == Type::TIMESTAMP.name() => GenericType::Timestamp,
+        name if name == Type::TIMESTAMPTZ.name() => GenericType::TimestampTz,
         _ => GenericType::UserDefined(native_type.to_string()),
     }
 }
@@ -64,6 +63,7 @@ pub fn map_sqlz_to_native_type(generic_type: &GenericType) -> String {
         GenericType::Boolean => Type::BOOL.name().to_string(),
         GenericType::Date => Type::DATE.name().to_string(),
         GenericType::Timestamp => Type::TIMESTAMP.name().to_string(),
+        GenericType::TimestampTz => Type::TIMESTAMPTZ.name().to_string(),
         GenericType::UserDefined(name) => "text".to_string(),
     }
 }
@@ -89,9 +89,12 @@ pub fn to_sqlz_value(index: usize, row: &postgres::Row) -> Option<SqlzValue> {
         Type::DATE => row
             .get::<_, Option<chrono::NaiveDate>>(index)
             .map(SqlzValue::Date),
-        Type::TIMESTAMP | Type::TIMESTAMPTZ => row
+        Type::TIMESTAMP => row
             .get::<_, Option<chrono::NaiveDateTime>>(index)
             .map(SqlzValue::Timestamp),
+        Type::TIMESTAMPTZ => row
+            .get::<_, Option<chrono::DateTime<chrono::Utc>>>(index)
+            .map(SqlzValue::TimestampTz),
         _ => {
             // Fallback for custom types (Enums, etc)
             row.get::<_, Option<String>>(index).map(SqlzValue::Text)
