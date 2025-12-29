@@ -1,5 +1,6 @@
 use crate::providers::postgresql::constants;
 use crate::sqlz::{ForeignKeyAction, GenericType, SqlzRow, SqlzValue};
+use postgres::types::Type;
 
 pub fn map_fk_action(action: &str) -> ForeignKeyAction {
     match action {
@@ -19,111 +20,82 @@ pub fn map_native_type_to_sqlz(
     scale: Option<i32>,
 ) -> GenericType {
     match native_type {
-        // Integers
-        constants::NATIVE_TYPE_INT => GenericType::TinyInt,
-        constants::NATIVE_TYPE_INT2 => GenericType::SmallInt,
-        constants::NATIVE_TYPE_INT4 => GenericType::Integer,
-        constants::NATIVE_TYPE_INT8 => GenericType::BigInt,
-
-        // Floats
-        constants::NATIVE_TYPE_FLOAT4 => GenericType::Float,
-        constants::NATIVE_TYPE_FLOAT8 => GenericType::Double,
-        constants::NATIVE_TYPE_NUMERIC | constants::NATIVE_TYPE_DECIMAL => GenericType::Decimal {
-            precision: precision.unwrap() as usize,
-            scale: scale.unwrap() as usize,
-        },
-
-        // Strings/Chars
-        constants::NATIVE_TYPE_CHAR => GenericType::Char(char_len.unwrap() as usize),
-        constants::NATIVE_TYPE_BPCHAR => GenericType::Char(char_len.unwrap_or(0) as usize), // "Blank-padded char"
-        constants::NATIVE_TYPE_VARCHAR => GenericType::VarChar(char_len.unwrap_or(0) as usize),
-        constants::NATIVE_TYPE_TEXT => GenericType::Text,
-
-        constants::NATIVE_TYPE_BYTEA => GenericType::Blob(0),
-
-        // Booleans
-        constants::NATIVE_TYPE_BOOL => GenericType::Boolean,
-
-        // Date/Time
-        constants::NATIVE_TYPE_DATE => GenericType::Date,
-        constants::NATIVE_TYPE_TIMESTAMP | constants::NATIVE_TYPE_TIMESTAMPTZ => {
+        name if name == Type::INT2.name() => GenericType::SmallInt,
+        name if name == Type::INT4.name() => GenericType::Integer,
+        name if name == Type::INT8.name() => GenericType::BigInt,
+        name if name == Type::FLOAT4.name() => GenericType::Float,
+        name if name == Type::FLOAT8.name() => GenericType::Double,
+        name if name == Type::NUMERIC.name() || name == constants::NATIVE_TYPE_DECIMAL => {
+            GenericType::Decimal {
+                precision: precision.unwrap_or(0) as usize,
+                scale: scale.unwrap_or(0) as usize,
+            }
+        }
+        name if name == Type::CHAR.name() || name == Type::BPCHAR.name() => {
+            GenericType::Char(char_len.unwrap_or(0) as usize)
+        }
+        name if name == Type::VARCHAR.name() => {
+            GenericType::VarChar(char_len.unwrap_or(0) as usize)
+        }
+        name if name == Type::TEXT.name() => GenericType::Text,
+        name if name == Type::BYTEA.name() => GenericType::Blob(0),
+        name if name == Type::BOOL.name() => GenericType::Boolean,
+        name if name == Type::DATE.name() => GenericType::Date,
+        name if name == Type::TIMESTAMP.name() || name == Type::TIMESTAMPTZ.name() => {
             GenericType::Timestamp
         }
-
-        // Fallback for custom types
         _ => GenericType::UserDefined(native_type.to_string()),
     }
 }
 
 pub fn map_sqlz_to_native_type(generic_type: &GenericType) -> String {
     match generic_type {
-        GenericType::TinyInt => constants::NATIVE_TYPE_INT.to_string(),
-        GenericType::SmallInt => constants::NATIVE_TYPE_INT2.to_string(),
-        GenericType::Integer => constants::NATIVE_TYPE_INT4.to_string(),
-        GenericType::BigInt => constants::NATIVE_TYPE_INT8.to_string(),
-
-        GenericType::Float => constants::NATIVE_TYPE_FLOAT4.to_string(),
-        GenericType::Double => constants::NATIVE_TYPE_FLOAT8.to_string(),
-        GenericType::Decimal { .. } => constants::NATIVE_TYPE_NUMERIC.to_string(),
-
-        GenericType::VarChar(_) => constants::NATIVE_TYPE_VARCHAR.to_string(),
-        GenericType::Char(_) => constants::NATIVE_TYPE_CHAR.to_string(),
-        GenericType::Text => constants::NATIVE_TYPE_TEXT.to_string(),
-
-        GenericType::Blob(_) => constants::NATIVE_TYPE_BYTEA.to_string(),
-
-        GenericType::Boolean => constants::NATIVE_TYPE_BOOL.to_string(),
-
-        GenericType::Date => constants::NATIVE_TYPE_DATE.to_string(),
-        GenericType::Timestamp => constants::NATIVE_TYPE_TIMESTAMP.to_string(),
-
-        GenericType::UserDefined(_) => "text".to_string(),
+        GenericType::TinyInt => Type::INT2.name().to_string(), // PG doesn't have 1-byte int, use int2
+        GenericType::SmallInt => Type::INT2.name().to_string(),
+        GenericType::Integer => Type::INT4.name().to_string(),
+        GenericType::BigInt => Type::INT8.name().to_string(),
+        GenericType::Float => Type::FLOAT4.name().to_string(),
+        GenericType::Double => Type::FLOAT8.name().to_string(),
+        GenericType::Decimal { .. } => Type::NUMERIC.name().to_string(),
+        GenericType::VarChar(_) => Type::VARCHAR.name().to_string(),
+        GenericType::Char(_) => Type::BPCHAR.name().to_string(),
+        GenericType::Text => Type::TEXT.name().to_string(),
+        GenericType::Blob(_) => Type::BYTEA.name().to_string(),
+        GenericType::Boolean => Type::BOOL.name().to_string(),
+        GenericType::Date => Type::DATE.name().to_string(),
+        GenericType::Timestamp => Type::TIMESTAMP.name().to_string(),
+        GenericType::UserDefined(name) => "text".to_string(),
     }
 }
 
 pub fn to_sqlz_value(index: usize, row: &postgres::Row) -> Option<SqlzValue> {
     let column = &row.columns()[index];
-    let postgres_type = column.type_();
+    let pg_type = column.type_();
 
-    match postgres_type.name() {
-        // Integers
-        constants::NATIVE_TYPE_INT => row.get::<_, Option<i8>>(index).map(SqlzValue::TinyInt),
-        constants::NATIVE_TYPE_INT2 => row.get::<_, Option<i16>>(index).map(SqlzValue::SmallInt),
-        constants::NATIVE_TYPE_INT4 => row.get::<_, Option<i32>>(index).map(SqlzValue::Integer),
-        constants::NATIVE_TYPE_INT8 => row.get::<_, Option<i64>>(index).map(SqlzValue::BigInt),
-
-        // Floats & Numeric
-        constants::NATIVE_TYPE_FLOAT4 => row.get::<_, Option<f32>>(index).map(SqlzValue::Float),
-        constants::NATIVE_TYPE_FLOAT8 => row.get::<_, Option<f64>>(index).map(SqlzValue::Double),
-        constants::NATIVE_TYPE_NUMERIC | constants::NATIVE_TYPE_DECIMAL => row
+    match *pg_type {
+        Type::INT2 => row.get::<_, Option<i16>>(index).map(SqlzValue::SmallInt),
+        Type::INT4 => row.get::<_, Option<i32>>(index).map(SqlzValue::Integer),
+        Type::INT8 => row.get::<_, Option<i64>>(index).map(SqlzValue::BigInt),
+        Type::FLOAT4 => row.get::<_, Option<f32>>(index).map(SqlzValue::Float),
+        Type::FLOAT8 => row.get::<_, Option<f64>>(index).map(SqlzValue::Double),
+        Type::NUMERIC => row
             .get::<_, Option<rust_decimal::Decimal>>(index)
             .map(|d| SqlzValue::Decimal(d.to_string())),
-
-        // Strings
-        constants::NATIVE_TYPE_CHAR | constants::NATIVE_TYPE_BPCHAR => {
-            row.get::<_, Option<String>>(index).map(SqlzValue::Char)
-        }
-
-        constants::NATIVE_TYPE_VARCHAR => {
-            row.get::<_, Option<String>>(index).map(SqlzValue::VarChar)
-        }
-        constants::NATIVE_TYPE_TEXT => row.get::<_, Option<String>>(index).map(SqlzValue::Text),
-
-        // Blobs
-        constants::NATIVE_TYPE_BYTEA => row.get::<_, Option<Vec<u8>>>(index).map(SqlzValue::Blob),
-
-        // Booleans
-        constants::NATIVE_TYPE_BOOL => row.get::<_, Option<bool>>(index).map(SqlzValue::Bool),
-
-        // Date/Time
-        constants::NATIVE_TYPE_DATE => row
+        Type::CHAR | Type::BPCHAR => row.get::<_, Option<String>>(index).map(SqlzValue::Char),
+        Type::VARCHAR => row.get::<_, Option<String>>(index).map(SqlzValue::VarChar),
+        Type::TEXT => row.get::<_, Option<String>>(index).map(SqlzValue::Text),
+        Type::BYTEA => row.get::<_, Option<Vec<u8>>>(index).map(SqlzValue::Blob),
+        Type::BOOL => row.get::<_, Option<bool>>(index).map(SqlzValue::Bool),
+        Type::DATE => row
             .get::<_, Option<chrono::NaiveDate>>(index)
             .map(SqlzValue::Date),
-        constants::NATIVE_TYPE_TIMESTAMP | constants::NATIVE_TYPE_TIMESTAMPTZ => row
+        Type::TIMESTAMP | Type::TIMESTAMPTZ => row
             .get::<_, Option<chrono::NaiveDateTime>>(index)
             .map(SqlzValue::Timestamp),
-
-        _ => row.get::<_, Option<String>>(index).map(SqlzValue::Text)
+        _ => {
+            // Fallback for custom types (Enums, etc)
+            row.get::<_, Option<String>>(index).map(SqlzValue::Text)
+        }
     }
 }
 

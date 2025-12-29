@@ -12,7 +12,7 @@ fn main() {
     let film = tables.iter().find(|t| t.name == "film").unwrap();
     let test = tables.iter().find(|t| t.name == "test").unwrap();
 
-    //target_provider.generate_schema(film).unwrap();
+    target_provider.generate_schema(film).unwrap();
 
     let mut read_options = RowReadOptions::default();
     loop {
