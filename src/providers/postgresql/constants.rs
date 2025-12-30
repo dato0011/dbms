@@ -11,4 +11,7 @@ pub const CONSTRAINT_UNIQUE: &str = "UNIQUE";
 
 pub const SCHEMA_PUBLIC: &str = "public";
 
+pub const COL_TABLE_SCHEMA: &str = "table_schema";
+pub const COL_TABLE_NAME: &str = "table_name";
+
 pub const PRECISION_TYPES: [&'static str; 2] = [NATIVE_TYPE_NUMERIC, NATIVE_TYPE_DECIMAL];

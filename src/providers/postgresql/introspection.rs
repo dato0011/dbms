@@ -11,7 +11,13 @@ pub fn get_all_tables(client: &mut Client) -> SqlzResult<Vec<Table>> {
 
     let mut tables: Vec<Table> = rows
         .into_iter()
-        .map(|row| read_table(client, row.get("table_schema"), row.get("table_name")))
+        .map(|row| {
+            read_table(
+                client,
+                row.get(constants::COL_TABLE_SCHEMA),
+                row.get(constants::COL_TABLE_NAME),
+            )
+        })
         .collect::<SqlzResult<_>>()?;
 
     let column_lookup: HashMap<(String, String, String), Rc<Column>> = tables
@@ -34,7 +40,11 @@ pub fn get_all_tables(client: &mut Client) -> SqlzResult<Vec<Table>> {
     Ok(tables)
 }
 
-pub fn read_table(client: &mut Client, schema_name: String, table_name: String) -> SqlzResult<Table> {
+pub fn read_table(
+    client: &mut Client,
+    schema_name: String,
+    table_name: String,
+) -> SqlzResult<Table> {
     let mut table = Table {
         schema: Some(schema_name),
         name: table_name,
@@ -43,7 +53,10 @@ pub fn read_table(client: &mut Client, schema_name: String, table_name: String) 
     };
 
     let rows = client
-        .query(queries::SELECT_COLUMNS, &[&table.name, table.schema.as_ref().unwrap()])
+        .query(
+            queries::SELECT_COLUMNS,
+            &[&table.name, table.schema.as_ref().unwrap()],
+        )
         .map_err(|e| SqlzError::DatabaseError(Box::new(e)))?;
 
     for row in rows {
@@ -83,7 +96,10 @@ pub fn read_table(client: &mut Client, schema_name: String, table_name: String) 
 
 fn fill_constraints(client: &mut Client, table: &mut Table) -> SqlzResult<()> {
     let rows = client
-        .query(queries::SELECT_CONSTRAINTS, &[&table.name, table.schema.as_ref().unwrap()])
+        .query(
+            queries::SELECT_CONSTRAINTS,
+            &[&table.name, table.schema.as_ref().unwrap()],
+        )
         .map_err(|e| SqlzError::DatabaseError(Box::new(e)))?;
 
     for row in rows {
@@ -147,7 +163,10 @@ fn fill_foreign_keys(
     column_lookup: &HashMap<(String, String, String), Rc<Column>>,
 ) -> SqlzResult<()> {
     let rows = client
-        .query(queries::SELECT_FOREIGN_KEYS, &[&table.name, table.schema.as_ref().unwrap()])
+        .query(
+            queries::SELECT_FOREIGN_KEYS,
+            &[&table.name, table.schema.as_ref().unwrap()],
+        )
         .map_err(|e| SqlzError::DatabaseError(Box::new(e)))?;
 
     for row in rows {

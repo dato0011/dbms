@@ -1,4 +1,4 @@
-use super::{helper, introspection, queries};
+use super::{constants, helper, introspection, queries};
 use crate::sqlz::{
     BatchQueryResult, ContinueFrom, Provider, RowReadOptions, SqlzError, SqlzResult, SqlzRow, Table,
 };
@@ -44,22 +44,22 @@ impl Provider for PostgresqlProvider {
         let existing_tables: Vec<Table> = rows
             .iter()
             .filter(|row| {
-                let row_table_name: &str = row.get("table_name");
-                let row_table_schema: &str = row.get("table_schema");
+                let table_schema: &str = row.get(constants::COL_TABLE_SCHEMA);
+                let table_name: &str = row.get(constants::COL_TABLE_NAME);
 
                 tables.iter().any(|t| {
-                    t.name == row_table_name
+                    t.name == table_name
                         && t.schema
                             .as_deref()
                             .unwrap_or(super::constants::SCHEMA_PUBLIC)
-                            == row_table_schema
+                            == table_schema
                 })
             })
             .map(|row| {
                 introspection::read_table(
                     &mut self.client,
-                    row.get("table_schema"),
-                    row.get("table_name"),
+                    row.get(constants::COL_TABLE_SCHEMA),
+                    row.get(constants::COL_TABLE_NAME),
                 )
             })
             .collect::<SqlzResult<_>>()?;

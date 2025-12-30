@@ -1,6 +1,6 @@
+use crate::providers::postgresql::constants;
 use crate::sqlz::{GenericType, RowReadOptions, SqlzRow, SqlzValue, Table};
 use std::collections::HashMap;
-use crate::providers::postgresql::constants;
 
 pub const SELECT_TABLES: &str = "\
     SELECT table_schema, table_name
@@ -62,7 +62,10 @@ pub fn build_create_table_sql(
     table: &Table,
     target_column_type_map: HashMap<String, String>,
 ) -> String {
-    let schema = table.schema.as_deref().unwrap_or_else(|| constants::SCHEMA_PUBLIC);
+    let schema = table
+        .schema
+        .as_deref()
+        .unwrap_or_else(|| constants::SCHEMA_PUBLIC);
     let mut sql = format!("CREATE TABLE {}.{} (\n", schema, table.name);
     let mut column_defs = Vec::new();
 
@@ -175,7 +178,10 @@ pub fn build_write_rows_sql(table: &Table, rows: &Vec<SqlzRow>) -> (String, Vec<
 
     let sql = format!(
         "INSERT INTO {}.{} ({}) VALUES {}",
-        table.schema.as_deref().unwrap_or_else(|| constants::SCHEMA_PUBLIC),
+        table
+            .schema
+            .as_deref()
+            .unwrap_or_else(|| constants::SCHEMA_PUBLIC),
         table.name,
         columns_str,
         values_placeholders.join(", ")

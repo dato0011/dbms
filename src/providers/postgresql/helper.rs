@@ -42,12 +42,8 @@ pub fn map_native_type_to_sqlz(
         name if name == Type::JSONB.name() => GenericType::Json,
         name if name == Type::BYTEA.name() => GenericType::Blob(0),
         name if name == Type::UUID.name() => GenericType::Uuid,
-        name if name == Type::BIT.name() => {
-            GenericType::Bit(char_len.unwrap_or(0) as usize)
-        }
-        name if name == Type::VARBIT.name() => {
-            GenericType::VarBit(char_len.unwrap_or(0) as usize)
-        },
+        name if name == Type::BIT.name() => GenericType::Bit(char_len.unwrap_or(0) as usize),
+        name if name == Type::VARBIT.name() => GenericType::VarBit(char_len.unwrap_or(0) as usize),
         name if name == Type::BOOL.name() => GenericType::Boolean,
         name if name == Type::DATE.name() => GenericType::Date,
         name if name == Type::TIMESTAMP.name() => GenericType::Timestamp,
@@ -104,8 +100,12 @@ pub fn to_sqlz_value(index: usize, row: &postgres::Row) -> Option<SqlzValue> {
             .map(|v| SqlzValue::Json(v.to_string())),
         Type::BYTEA => row.get::<_, Option<Vec<u8>>>(index).map(SqlzValue::Blob),
         Type::UUID => row.get::<_, Option<uuid::Uuid>>(index).map(SqlzValue::Uuid),
-        Type::BIT => row.get::<_, Option<bit_vec::BitVec>>(index).map(SqlzValue::Bit),
-        Type::VARBIT => row.get::<_, Option<bit_vec::BitVec>>(index).map(SqlzValue::VarBit),
+        Type::BIT => row
+            .get::<_, Option<bit_vec::BitVec>>(index)
+            .map(SqlzValue::Bit),
+        Type::VARBIT => row
+            .get::<_, Option<bit_vec::BitVec>>(index)
+            .map(SqlzValue::VarBit),
         Type::BOOL => row.get::<_, Option<bool>>(index).map(SqlzValue::Bool),
         Type::DATE => row
             .get::<_, Option<chrono::NaiveDate>>(index)

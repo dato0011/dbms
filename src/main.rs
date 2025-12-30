@@ -21,7 +21,7 @@ fn main() {
         println!("Existing table: {}", table.name);
         println!("Table {} can migrate to: {}", table.name, film.can_migrate_to(table));
     }
-    
+
     return
 
     target_provider.create_schema(film.schema.as_ref().unwrap()).unwrap();

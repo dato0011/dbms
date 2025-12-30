@@ -2,8 +2,8 @@ mod error;
 mod provider;
 mod query;
 mod schema;
-mod types;
 mod schema_tests;
+mod types;
 
 pub use error::*;
 pub use provider::*;
