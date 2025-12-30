@@ -41,7 +41,7 @@ impl Provider for PostgresqlProvider {
             .query(queries::SELECT_TABLES, &[])
             .map_err(|e| SqlzError::DatabaseError(Box::new(e)))?;
 
-        let existing_tables: Vec<Table> = rows
+        let mut existing_tables: Vec<Table> = rows
             .iter()
             .filter(|row| {
                 let table_schema: &str = row.get(constants::COL_TABLE_SCHEMA);
@@ -63,6 +63,11 @@ impl Provider for PostgresqlProvider {
                 )
             })
             .collect::<SqlzResult<_>>()?;
+
+        for table in existing_tables.iter_mut() {
+            introspection::fill_constraints(&mut self.client, table)?;
+            // TODO: fill_foreign_keys
+        }
 
         Ok(existing_tables)
     }
@@ -89,7 +94,40 @@ impl Provider for PostgresqlProvider {
         Ok(())
     }
 
-    fn create_constraints(&mut self) -> SqlzResult<()> {
+    fn apply_pk_constraints(&mut self, from_table: &Table, to_table: &Table) -> SqlzResult<()> {
+        let from_pk = match from_table.get_pk() {
+            Some(pk) => pk,
+            None => return Ok(()),
+        };
+
+        if let Some(to_pk) = to_table.get_pk() {
+            let from_cols: Vec<String> = from_pk.columns.iter().map(|c| c.name.clone()).collect();
+            let to_cols: Vec<String> = to_pk.columns.iter().map(|c| c.name.clone()).collect();
+
+            if from_cols != to_cols {
+                return Err(SqlzError::DifferentPkColumns(
+                    to_table.name.clone(),
+                    from_cols.join(", "),
+                    to_cols.join(", "),
+                ));
+            }
+            return Ok(());
+        }
+
+        let sql = queries::build_add_pk_sql(to_table, &from_pk);
+
+        self.client
+            .execute(&sql, &[])
+            .map_err(|e| SqlzError::DatabaseError(Box::new(e)))?;
+
+        Ok(())
+    }
+
+    fn apply_fk_constraints(&mut self, from_table: &Table, to_table: &Table) -> SqlzResult<()> {
+        todo!()
+    }
+
+    fn apply_unique_constraints(&mut self, from_table: &Table, to_table: &Table) -> SqlzResult<()> {
         todo!()
     }
 

@@ -6,7 +6,9 @@ pub trait Provider {
     fn get_existing_tables(&mut self, tables: &[Table]) -> SqlzResult<Vec<Table>>;
     fn create_schema(&mut self, schema_name: &str) -> SqlzResult<()>;
     fn create_table(&mut self, table: &Table) -> SqlzResult<()>;
-    fn create_constraints(&mut self) -> SqlzResult<()>;
+    fn apply_pk_constraints(&mut self, from_table: &Table, to_table: &Table) -> SqlzResult<()>;
+    fn apply_fk_constraints(&mut self, from_table: &Table, to_table: &Table) -> SqlzResult<()>;
+    fn apply_unique_constraints(&mut self, from_table: &Table, to_table: &Table) -> SqlzResult<()>;
     fn read_rows(
         &mut self,
         table: &Table,

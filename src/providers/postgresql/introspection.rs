@@ -94,7 +94,7 @@ pub fn read_table(
     Ok(table)
 }
 
-fn fill_constraints(client: &mut Client, table: &mut Table) -> SqlzResult<()> {
+pub fn fill_constraints(client: &mut Client, table: &mut Table) -> SqlzResult<()> {
     let rows = client
         .query(
             queries::SELECT_CONSTRAINTS,
@@ -157,7 +157,7 @@ fn fill_constraints(client: &mut Client, table: &mut Table) -> SqlzResult<()> {
     Ok(())
 }
 
-fn fill_foreign_keys(
+pub fn fill_foreign_keys(
     client: &mut Client,
     table: &mut Table,
     column_lookup: &HashMap<(String, String, String), Rc<Column>>,

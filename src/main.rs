@@ -14,29 +14,33 @@ fn main() {
             .unwrap();
     let tables = provider.get_tables().unwrap();
     let film = tables.iter().find(|t| t.name == "film").unwrap();
-    let _test = tables.iter().find(|t| t.name == "test2").unwrap();
+    let _test = tables.iter().find(|t| t.name == "test").unwrap();
 
-    let existing = target_provider.get_existing_tables(&tables).unwrap();
-    for table in existing.iter() {
-        println!("Existing table: {}", table.name);
-        println!("Table {} can migrate to: {}", table.name, film.can_migrate_to(table));
-    }
+    // let existing = target_provider.get_existing_tables(&tables).unwrap();
+    // for table in existing.iter() {
+    //     println!("Existing table: {}", table.name);
+    //     println!("Table {} can migrate to: {}", table.name, film.can_migrate_to(table));
+    // }
+    //
+    // return
 
-    return
-
-    target_provider.create_schema(film.schema.as_ref().unwrap()).unwrap();
-    target_provider.create_table(film).unwrap();
+    target_provider.create_schema(_test.schema.as_ref().unwrap()).unwrap();
+    target_provider.create_table(_test).unwrap();
 
     let mut read_options = RowReadOptions::default();
     loop {
-        let result = provider.read_rows(film, &read_options).unwrap();
-        target_provider.write_rows(film, result.rows).unwrap();
+        let result = provider.read_rows(_test, &read_options).unwrap();
+        target_provider.write_rows(_test, result.rows).unwrap();
 
         if result.continue_from.is_none() {
             break;
         }
         read_options.continue_from = result.continue_from;
     }
+
+    let existing = target_provider.get_existing_tables(&tables).unwrap();
+    let new_test = existing.iter().find(|t| t.name == "test").unwrap();
+    target_provider.apply_pk_constraints(_test, new_test).unwrap();
 
     // let mut options = RowReadOptions::default();
     // options.continue_from = Some(ContinueFrom::new(test.get_pk().unwrap(), vec![SqlzValue::Integer(1), SqlzValue::Integer(2)]));

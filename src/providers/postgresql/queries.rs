@@ -26,7 +26,7 @@ pub const SELECT_COLUMNS: &str = "\
     ORDER BY ordinal_position;";
 
 pub const SELECT_CONSTRAINTS: &str = "\
-    SELECT tc.constraint_name, tc.constraint_type, kcu.column_name
+    SELECT DISTINCT tc.constraint_name, tc.constraint_type, kcu.column_name
     FROM information_schema.table_constraints tc
     JOIN information_schema.key_column_usage kcu
       ON tc.constraint_name = kcu.constraint_name
@@ -188,4 +188,23 @@ pub fn build_write_rows_sql(table: &Table, rows: &Vec<SqlzRow>) -> (String, Vec<
     );
 
     (sql, params)
+}
+
+pub fn build_add_pk_sql(table: &Table, pk: &crate::sqlz::PrimaryKeyConstraint) -> String {
+    let schema = table
+        .schema
+        .as_deref()
+        .unwrap_or(constants::SCHEMA_PUBLIC);
+
+    let columns = pk
+        .columns
+        .iter()
+        .map(|c| format!("\"{}\"", c.name))
+        .collect::<Vec<_>>()
+        .join(", ");
+
+    format!(
+        "ALTER TABLE {}.{} ADD CONSTRAINT {} PRIMARY KEY ({});",
+        schema, table.name, pk.constraint_name, columns
+    )
 }
