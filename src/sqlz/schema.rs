@@ -37,6 +37,7 @@ pub struct Column {
 
 pub struct Table {
     pub name: String,
+    pub schema: Option<String>,
     pub columns: Vec<Rc<Column>>,
     pub constraints: Vec<ConstraintType>,
 }

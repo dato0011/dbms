@@ -11,15 +11,18 @@ pub fn get_all_tables(client: &mut Client) -> SqlzResult<Vec<Table>> {
 
     let mut tables: Vec<Table> = rows
         .into_iter()
-        .map(|row| read_table(client, row.get("table_name")))
+        .map(|row| read_table(client, row.get("table_schema"), row.get("table_name")))
         .collect::<SqlzResult<_>>()?;
 
-    let column_lookup: HashMap<(String, String), Rc<Column>> = tables
+    let column_lookup: HashMap<(String, String, String), Rc<Column>> = tables
         .iter()
         .flat_map(|t| {
-            t.columns
-                .iter()
-                .map(|c| ((t.name.clone(), c.name.clone()), Rc::clone(c)))
+            t.columns.iter().map(|c| {
+                (
+                    (t.schema.clone().unwrap(), t.name.clone(), c.name.clone()),
+                    Rc::clone(c),
+                )
+            })
         })
         .collect();
 
@@ -31,15 +34,16 @@ pub fn get_all_tables(client: &mut Client) -> SqlzResult<Vec<Table>> {
     Ok(tables)
 }
 
-fn read_table(client: &mut Client, table_name: String) -> SqlzResult<Table> {
+fn read_table(client: &mut Client, schema_name: String, table_name: String) -> SqlzResult<Table> {
     let mut table = Table {
+        schema: Some(schema_name),
         name: table_name,
         columns: Vec::new(),
         constraints: Vec::new(),
     };
 
     let column_rows = client
-        .query(queries::SELECT_COLUMNS, &[&table.name])
+        .query(queries::SELECT_COLUMNS, &[&table.name, table.schema.as_ref().unwrap()])
         .map_err(|e| SqlzError::DatabaseError(Box::new(e)))?;
 
     for row in column_rows {
@@ -78,9 +82,8 @@ fn read_table(client: &mut Client, table_name: String) -> SqlzResult<Table> {
 }
 
 fn fill_constraints(client: &mut Client, table: &mut Table) -> SqlzResult<()> {
-    // ... logic moved from provider.rs ...
     let rows = client
-        .query(queries::SELECT_CONSTRAINTS, &[&table.name])
+        .query(queries::SELECT_CONSTRAINTS, &[&table.name, table.schema.as_ref().unwrap()])
         .map_err(|e| SqlzError::DatabaseError(Box::new(e)))?;
 
     for row in rows {
@@ -141,19 +144,20 @@ fn fill_constraints(client: &mut Client, table: &mut Table) -> SqlzResult<()> {
 fn fill_foreign_keys(
     client: &mut Client,
     table: &mut Table,
-    column_lookup: &HashMap<(String, String), Rc<Column>>,
+    column_lookup: &HashMap<(String, String, String), Rc<Column>>,
 ) -> SqlzResult<()> {
     let rows = client
-        .query(queries::SELECT_FOREIGN_KEYS, &[&table.name])
+        .query(queries::SELECT_FOREIGN_KEYS, &[&table.name, table.schema.as_ref().unwrap()])
         .map_err(|e| SqlzError::DatabaseError(Box::new(e)))?;
 
     for row in rows {
         let column_name: String = row.get("column_name");
+        let foreign_schema: String = row.get("foreign_table_schema");
         let foreign_table: String = row.get("foreign_table_name");
         let foreign_column: String = row.get("foreign_column_name");
 
         let source = table.columns.iter().find(|c| c.name == column_name);
-        let target = column_lookup.get(&(foreign_table.clone(), foreign_column));
+        let target = column_lookup.get(&(foreign_schema, foreign_table.clone(), foreign_column));
 
         if let (Some(src_col), Some(ref_col)) = (source, target) {
             table.constraints.push(ConstraintType::ForeignKey {

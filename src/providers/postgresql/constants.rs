@@ -9,4 +9,6 @@ pub const FK_ACTION_RESTRICT: &str = "RESTRICT";
 pub const CONSTRAINT_PK: &str = "PRIMARY KEY";
 pub const CONSTRAINT_UNIQUE: &str = "UNIQUE";
 
+pub const SCHEMA_PUBLIC: &str = "public";
+
 pub const PRECISION_TYPES: [&'static str; 2] = [NATIVE_TYPE_NUMERIC, NATIVE_TYPE_DECIMAL];

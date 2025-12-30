@@ -1,10 +1,12 @@
 use crate::sqlz::{GenericType, RowReadOptions, SqlzRow, SqlzValue, Table};
 use std::collections::HashMap;
+use crate::providers::postgresql::constants;
 
 pub const SELECT_TABLES: &str = "\
-    SELECT table_name
+    SELECT table_schema, table_name
     FROM information_schema.tables
-    WHERE table_schema = 'public'
+    WHERE table_schema NOT LIKE 'pg_%'
+      AND table_schema <> 'information_schema'
       AND table_type = 'BASE TABLE';";
 
 pub const SELECT_COLUMNS: &str = "\
@@ -19,8 +21,8 @@ pub const SELECT_COLUMNS: &str = "\
         udt_name,
         is_identity
     FROM information_schema.columns
-    WHERE table_schema = 'public'
-      AND table_name = $1
+    WHERE table_name = $1
+      AND table_schema = $2
     ORDER BY ordinal_position;";
 
 pub const SELECT_CONSTRAINTS: &str = "\
@@ -28,8 +30,8 @@ pub const SELECT_CONSTRAINTS: &str = "\
     FROM information_schema.table_constraints tc
     JOIN information_schema.key_column_usage kcu
       ON tc.constraint_name = kcu.constraint_name
-    WHERE tc.table_schema = 'public'
-      AND tc.table_name = $1
+    WHERE tc.table_name = $1
+      AND tc.table_schema = $2
       AND tc.constraint_type IN ('PRIMARY KEY', 'UNIQUE');";
 
 pub const SELECT_FOREIGN_KEYS: &str = "\
@@ -52,19 +54,20 @@ pub const SELECT_FOREIGN_KEYS: &str = "\
         ON rc.unique_constraint_name = ccu.constraint_name
         AND rc.constraint_schema = ccu.table_schema
     WHERE tc.constraint_type = 'FOREIGN KEY'
-      AND tc.table_schema = 'public'
       AND tc.table_name = $1
+      AND tc.table_schema = $2
     ORDER BY tc.constraint_name, kcu.ordinal_position;";
 
 pub const SELECT_TABLES_EXISTS: &str = "\
     SELECT table_name FROM information_schema.tables \
-    WHERE table_schema = 'public' AND table_name = ANY($1);";
+    WHERE table_schema = '{}' AND table_name = ANY($1);";
 
 pub fn build_create_table_sql(
     table: &Table,
     target_column_type_map: HashMap<String, String>,
 ) -> String {
-    let mut sql = format!("CREATE TABLE public.{} (\n", table.name);
+    let schema = table.schema.as_deref().unwrap_or_else(|| constants::SCHEMA_PUBLIC);
+    let mut sql = format!("CREATE TABLE {}.{} (\n", schema, table.name);
     let mut column_defs = Vec::new();
 
     for col in &table.columns {
@@ -175,7 +178,8 @@ pub fn build_write_rows_sql(table: &Table, rows: &Vec<SqlzRow>) -> (String, Vec<
     }
 
     let sql = format!(
-        "INSERT INTO {} ({}) VALUES {}",
+        "INSERT INTO {}.{} ({}) VALUES {}",
+        table.schema.as_deref().unwrap_or_else(|| constants::SCHEMA_PUBLIC),
         table.name,
         columns_str,
         values_placeholders.join(", ")

@@ -27,6 +27,10 @@ impl PostgresqlProvider {
 }
 
 impl Provider for PostgresqlProvider {
+    fn has_schemas_support(&self) -> bool {
+        true
+    }
+    
     fn get_tables(&mut self) -> SqlzResult<Vec<Table>> {
         introspection::get_all_tables(&mut self.client)
     }
@@ -42,7 +46,14 @@ impl Provider for PostgresqlProvider {
         Ok(rows.iter().map(|row| row.get("table_name")).collect())
     }
 
-    fn generate_schema(&mut self, table: &Table) -> SqlzResult<()> {
+    fn create_schema(&mut self, schema_name: &str) -> SqlzResult<()> {
+        self.client
+            .execute(&format!("CREATE SCHEMA IF NOT EXISTS {}", schema_name), &[])
+            .map_err(|e| SqlzError::DatabaseError(Box::new(e)))?;
+        Ok(())
+    }
+
+    fn create_table(&mut self, table: &Table) -> SqlzResult<()> {
         let mut column_map = HashMap::new();
         table.columns.iter().for_each(|c| {
             column_map.insert(c.name.clone(), helper::map_sqlz_to_native_type(&c.col_type));

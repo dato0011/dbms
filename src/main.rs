@@ -1,4 +1,4 @@
-use crate::sqlz::{ContinueFrom, RowReadOptions, SqlzValue};
+use crate::sqlz::{RowReadOptions};
 use providers::postgresql::PostgresqlProvider;
 use sqlz::Provider;
 
@@ -14,9 +14,10 @@ fn main() {
             .unwrap();
     let tables = provider.get_tables().unwrap();
     let film = tables.iter().find(|t| t.name == "film").unwrap();
-    let test = tables.iter().find(|t| t.name == "test").unwrap();
+    let _test = tables.iter().find(|t| t.name == "test2").unwrap();
 
-    target_provider.generate_schema(film).unwrap();
+    target_provider.create_schema(film.schema.as_ref().unwrap()).unwrap();
+    target_provider.create_table(film).unwrap();
 
     let mut read_options = RowReadOptions::default();
     loop {
