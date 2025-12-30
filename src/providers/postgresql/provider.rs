@@ -30,20 +30,41 @@ impl Provider for PostgresqlProvider {
     fn has_schemas_support(&self) -> bool {
         true
     }
-    
+
     fn get_tables(&mut self) -> SqlzResult<Vec<Table>> {
         introspection::get_all_tables(&mut self.client)
     }
 
-    fn tables_exists(&mut self, tables: &[Table]) -> SqlzResult<Vec<String>> {
-        let table_names: Vec<&str> = tables.iter().map(|t| t.name.as_str()).collect();
-
+    fn get_existing_tables(&mut self, tables: &[Table]) -> SqlzResult<Vec<Table>> {
         let rows = self
             .client
-            .query(queries::SELECT_TABLES_EXISTS, &[&table_names])
+            .query(queries::SELECT_TABLES, &[])
             .map_err(|e| SqlzError::DatabaseError(Box::new(e)))?;
 
-        Ok(rows.iter().map(|row| row.get("table_name")).collect())
+        let existing_tables: Vec<Table> = rows
+            .iter()
+            .filter(|row| {
+                let row_table_name: &str = row.get("table_name");
+                let row_table_schema: &str = row.get("table_schema");
+
+                tables.iter().any(|t| {
+                    t.name == row_table_name
+                        && t.schema
+                            .as_deref()
+                            .unwrap_or(super::constants::SCHEMA_PUBLIC)
+                            == row_table_schema
+                })
+            })
+            .map(|row| {
+                introspection::read_table(
+                    &mut self.client,
+                    row.get("table_schema"),
+                    row.get("table_name"),
+                )
+            })
+            .collect::<SqlzResult<_>>()?;
+
+        Ok(existing_tables)
     }
 
     fn create_schema(&mut self, schema_name: &str) -> SqlzResult<()> {

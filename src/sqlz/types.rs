@@ -98,7 +98,7 @@ impl postgres::types::ToSql for SqlzValue {
     }
 
     fn accepts(_: &postgres::types::Type) -> bool {
-        true // For simplicity in a generic provider
+        true 
     }
 
     fn to_sql_checked(

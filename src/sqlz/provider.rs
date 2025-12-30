@@ -3,7 +3,7 @@ use crate::sqlz::{BatchQueryResult, RowReadOptions, SqlzResult, SqlzRow, Table};
 pub trait Provider {
     fn has_schemas_support(&self) -> bool;
     fn get_tables(&mut self) -> SqlzResult<Vec<Table>>;
-    fn tables_exists(&mut self, tables: &[Table]) -> SqlzResult<Vec<String>>;
+    fn get_existing_tables(&mut self, tables: &[Table]) -> SqlzResult<Vec<Table>>;
     fn create_schema(&mut self, schema_name: &str) -> SqlzResult<()>;
     fn create_table(&mut self, table: &Table) -> SqlzResult<()>;
     fn create_constraints(&mut self) -> SqlzResult<()>;

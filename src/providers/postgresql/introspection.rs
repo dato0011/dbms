@@ -34,7 +34,7 @@ pub fn get_all_tables(client: &mut Client) -> SqlzResult<Vec<Table>> {
     Ok(tables)
 }
 
-fn read_table(client: &mut Client, schema_name: String, table_name: String) -> SqlzResult<Table> {
+pub fn read_table(client: &mut Client, schema_name: String, table_name: String) -> SqlzResult<Table> {
     let mut table = Table {
         schema: Some(schema_name),
         name: table_name,
@@ -42,11 +42,11 @@ fn read_table(client: &mut Client, schema_name: String, table_name: String) -> S
         constraints: Vec::new(),
     };
 
-    let column_rows = client
+    let rows = client
         .query(queries::SELECT_COLUMNS, &[&table.name, table.schema.as_ref().unwrap()])
         .map_err(|e| SqlzError::DatabaseError(Box::new(e)))?;
 
-    for row in column_rows {
+    for row in rows {
         let data_type: String = row.get("data_type");
         let udt_name: String = row.get("udt_name");
         let char_len: Option<i32> = row.get("character_maximum_length");

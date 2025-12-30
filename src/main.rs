@@ -16,6 +16,14 @@ fn main() {
     let film = tables.iter().find(|t| t.name == "film").unwrap();
     let _test = tables.iter().find(|t| t.name == "test2").unwrap();
 
+    let existing = target_provider.get_existing_tables(&tables).unwrap();
+    for table in existing.iter() {
+        println!("Existing table: {}", table.name);
+        println!("Table {} can migrate to: {}", table.name, film.can_migrate_to(table));
+    }
+    
+    return
+
     target_provider.create_schema(film.schema.as_ref().unwrap()).unwrap();
     target_provider.create_table(film).unwrap();
 

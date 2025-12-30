@@ -58,10 +58,6 @@ pub const SELECT_FOREIGN_KEYS: &str = "\
       AND tc.table_schema = $2
     ORDER BY tc.constraint_name, kcu.ordinal_position;";
 
-pub const SELECT_TABLES_EXISTS: &str = "\
-    SELECT table_name FROM information_schema.tables \
-    WHERE table_schema = '{}' AND table_name = ANY($1);";
-
 pub fn build_create_table_sql(
     table: &Table,
     target_column_type_map: HashMap<String, String>,
